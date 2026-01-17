@@ -11,7 +11,7 @@ Rules:
 
 ## Now (highest priority first)
 
-1) [ ] TASK-PRD-01-A: Bootstrap `microverse.py` CLI + deterministic selftest digest
+1) [x] TASK-PRD-01-A: Bootstrap `microverse.py` CLI + deterministic selftest digest
    - PRD: PRD-01
    - What to change: Create `microverse.py` with argparse, seed handling, deterministic RNG, fixed-step loop, and `--selftest` mode that prints `DIGEST=...`.
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`

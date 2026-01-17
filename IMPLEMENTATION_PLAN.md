@@ -35,7 +35,7 @@ Rules:
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
    - Completion definition: Counterfactual run completes deterministically and reports persistence in UI/log.
 
-5) [ ] TASK-PRD-09-A: Export still PNG
+5) [x] TASK-PRD-09-A: Export still PNG
    - PRD: PRD-09
    - What to change: Add a keybinding to save the current frame as a high-res PNG (no external assets).
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`

@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Tuple
 
 MASK32 = 0xFFFFFFFF
 DEFAULT_SCALE = 8
+EXPORT_SCALE = 2
 WATER_LEVEL = 90
 PLANT_GROWTH_RATE = 0.12
 PLANT_DECAY_BASE = 0.02
@@ -756,6 +757,10 @@ def event_key(label: str, detail: str) -> Tuple[str, str]:
     return (label, detail)
 
 
+def screenshot_filename(seed: int, tick: int) -> str:
+    return f"microverse_seed{seed}_tick{tick:010d}.png"
+
+
 def detect_event_details(
     plant_history: List[float],
     herb_history: List[float],
@@ -1143,6 +1148,7 @@ def run_window(sim: Simulation) -> int:
     counterfactual_cache: Dict[Tuple[str, str], bool] = {}
     last_sim_dt = 1.0 / 60.0
     panel_rect = pygame.Rect(view_size[0], 0, panel_width, view_size[1])
+    pending_screenshot: Optional[str] = None
 
     def counterfactual_line(label: str, detail: str) -> str:
         steps = max(1, sim_steps)
@@ -1271,6 +1277,8 @@ def run_window(sim: Simulation) -> int:
                 elif event.key == pygame.K_8:
                     time_scale = 8.0
                     paused = False
+                elif event.key == pygame.K_p:
+                    pending_screenshot = screenshot_filename(sim.seed, sim.tick)
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button in (2, 3):
                 dragging = True
                 last_mouse = event.pos
@@ -1365,6 +1373,17 @@ def run_window(sim: Simulation) -> int:
         for surface in hud_surfaces:
             screen.blit(surface, (hud_rect.left + padding, y))
             y += surface.get_height() + 2
+        if pending_screenshot:
+            export_surface = screen
+            if EXPORT_SCALE != 1:
+                export_size = (
+                    screen.get_width() * EXPORT_SCALE,
+                    screen.get_height() * EXPORT_SCALE,
+                )
+                export_surface = pygame.transform.scale(screen, export_size)
+            pygame.image.save(export_surface, pending_screenshot)
+            print(f"EXPORT: saved still to {pending_screenshot}")
+            pending_screenshot = None
         pygame.display.flip()
     pygame.quit()
     return 0

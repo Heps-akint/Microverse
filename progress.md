@@ -158,3 +158,12 @@ Purpose: cross-session memory. DO NOT rewrite history. Append new entries only.
 - If blocked: `python` executable missing; use `python3` or install python.
 - Plan update made: Yes
 - PRD update made: No
+
+### 2026-01-17 — Iteration 018 — TASK-PLAN
+- Goal: Refresh implementation plan for PRD-09 HTML export based on current code and specs.
+- What changed: Split PRD-09 HTML export into three smaller tasks covering report data capture, report writer, and keybinding integration.
+- Commands run + results: `ls`; `cat AGENTS.md PRD.md IMPLEMENTATION_PLAN.md progress.md`; `cat specs/00_overview.md specs/dashboard.md specs/ecology.md specs/events.md specs/export.md specs/renderer.md specs/simulation.md`; `cat ralph/PROMPT_plan.md`; `sed -n '1,260p' microverse.py`; `sed -n '260,640p' microverse.py`; `sed -n '640,1040p' microverse.py`; `sed -n '1040,1440p' microverse.py`; `date +%Y-%m-%d`.
+- Outcome: Implementation plan now breaks HTML export into focused, single-session tasks.
+- If blocked: N/A
+- Plan update made: Yes
+- PRD update made: No

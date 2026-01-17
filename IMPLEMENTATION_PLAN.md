@@ -41,11 +41,23 @@ Rules:
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
    - Completion definition: Keypress writes a PNG with a deterministic filename and expected content.
 
-6) [ ] TASK-PRD-09-B: Export HTML report
+6) [ ] TASK-PRD-09-B1: Capture report-ready data (events + history)
    - PRD: PRD-09
-   - What to change: Add a keybinding to write an HTML report with seed/params, key events, and embedded plots.
+   - What to change: Track an append-only event log (label, detail, tick/time, story) plus snapshot the existing population history so exports have stable inputs.
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
-   - Completion definition: HTML file is created with embedded plots and event summary.
+   - Completion definition: Export data structures are populated deterministically during windowed runs.
+
+7) [ ] TASK-PRD-09-B2: Build HTML report writer with embedded plots
+   - PRD: PRD-09
+   - What to change: Add a report builder that renders plots (timeseries + heatmap) via matplotlib, embeds them as base64 in HTML, and includes seed/parameters + event log.
+   - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
+   - Completion definition: A standalone function writes an HTML report from captured data.
+
+8) [ ] TASK-PRD-09-B3: Add HTML export keybinding + deterministic filename
+   - PRD: PRD-09
+   - What to change: Bind a keypress to invoke the report writer, pick a deterministic filename (seed + tick), and log the export path.
+   - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
+   - Completion definition: Keypress writes an HTML report with embedded plots and event summary.
 
 ---
 

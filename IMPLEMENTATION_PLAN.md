@@ -35,7 +35,7 @@ Rules:
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`; `python microverse.py --seed 123`
    - Completion definition: Camera moves as expected; HUD shows required fields; time controls update sim speed.
 
-5) [ ] TASK-PRD-04-A: Day/night lighting + sky/water cues
+5) [x] TASK-PRD-04-A: Day/night lighting + sky/water cues
    - PRD: PRD-04
    - What to change: Add sun angle over time, sky color gradient by sun elevation, and water/land shading differences.
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`

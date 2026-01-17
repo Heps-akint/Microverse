@@ -59,3 +59,12 @@ Purpose: cross-session memory. DO NOT rewrite history. Append new entries only.
 - If blocked: `python` executable missing; use `python3` or install python.
 - Plan update made: Yes
 - PRD update made: Yes
+
+### 2026-01-17 — Iteration 007 — TASK-PRD-04-A
+- Goal: Add day/night lighting, sky color shifts, and water highlights.
+- What changed: Added sun/sky lighting model with dynamic shading, sky tinting, and water reflections; renderer now updates lighting each frame.
+- Commands run + results: `python -m py_compile microverse.py` (failed: python not found); `python microverse.py --selftest --seed 123 --steps 300` (failed: python not found); `python3 -m py_compile microverse.py` (ok); `python3 microverse.py --selftest --seed 123 --steps 300` (DIGEST=f4324c57e63eef71e85e4fe3dfd9f1b691cf728a708321480e6f41b69fe8ea36).
+- Outcome: PRD-04 lighting cues implemented; deterministic selftest digest unchanged under python3.
+- If blocked: `python` executable missing; use `python3` or install python.
+- Plan update made: Yes
+- PRD update made: Yes

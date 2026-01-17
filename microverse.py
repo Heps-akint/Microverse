@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 import argparse
 import hashlib
+import math
 from typing import List, Optional, Tuple
 
 
 MASK32 = 0xFFFFFFFF
 DEFAULT_SCALE = 8
+WATER_LEVEL = 90
 
 
 class LcgRng:
@@ -79,6 +81,10 @@ def clamp_range(value: float, lower: float, upper: float) -> float:
 
 def lerp(a: float, b: float, t: float) -> float:
     return a + (b - a) * t
+
+
+def lerp_color(a: Tuple[int, int, int], b: Tuple[int, int, int], t: float) -> Tuple[float, float, float]:
+    return (lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t))
 
 
 def smoothstep(t: float) -> float:
@@ -169,10 +175,35 @@ def build_fields(width: int, height: int, seed: int) -> Tuple[List[int], List[in
     return heights, temps, rains
 
 
+def normalize_vec3(x: float, y: float, z: float) -> Tuple[float, float, float]:
+    length = math.sqrt(x * x + y * y + z * z)
+    if length == 0.0:
+        return (0.0, 0.0, 1.0)
+    return (x / length, y / length, z / length)
+
+
+def build_normals(heights: List[int], width: int, height: int, strength: float = 1.35) -> List[Tuple[float, float, float]]:
+    normals: List[Tuple[float, float, float]] = []
+    for y in range(height):
+        row = y * width
+        for x in range(width):
+            idx = row + x
+            left = heights[idx - 1] if x > 0 else heights[idx]
+            right = heights[idx + 1] if x < width - 1 else heights[idx]
+            up = heights[idx - width] if y > 0 else heights[idx]
+            down = heights[idx + width] if y < height - 1 else heights[idx]
+            dx = (right - left) / 255.0
+            dy = (down - up) / 255.0
+            nx = -dx * strength
+            ny = -dy * strength
+            nz = 1.0
+            normals.append(normalize_vec3(nx, ny, nz))
+    return normals
+
+
 def color_for(height: int, temp: int, rain: int) -> Tuple[int, int, int]:
-    water_level = 90
-    if height < water_level:
-        depth = height / float(water_level)
+    if height < WATER_LEVEL:
+        depth = height / float(WATER_LEVEL)
         return (
             clamp_byte(20 + 30 * depth),
             clamp_byte(40 + 80 * depth),
@@ -201,7 +232,7 @@ def color_for(height: int, temp: int, rain: int) -> Tuple[int, int, int]:
             base = (90, 150, 90)
         else:
             base = (70, 140, 90)
-    elevation = (height - water_level) / float(255 - water_level)
+    elevation = (height - WATER_LEVEL) / float(255 - WATER_LEVEL)
     shade = 0.6 + 0.4 * elevation
     return (
         clamp_byte(base[0] * shade),
@@ -210,17 +241,119 @@ def color_for(height: int, temp: int, rain: int) -> Tuple[int, int, int]:
     )
 
 
+def sky_color_for(sun_elev: float, sun_height: float) -> Tuple[int, int, int]:
+    night = (10, 14, 28)
+    day = (120, 170, 220)
+    dusk = (240, 140, 90)
+    base = lerp_color(night, day, sun_height)
+    twilight = clamp_unit(1.0 - abs(sun_elev) * 1.4)
+    if twilight > 0.0:
+        base = lerp_color(base, dusk, twilight * 0.6)
+    return (clamp_byte(base[0]), clamp_byte(base[1]), clamp_byte(base[2]))
+
+
+def sun_state(sim_time: float) -> Tuple[Tuple[float, float, float], float, Tuple[int, int, int]]:
+    day_length = 60.0
+    phase = (sim_time / day_length) * 2.0 * math.pi
+    sun_elev = math.sin(phase)
+    sun_height = clamp_unit((sun_elev + 0.15) / 1.15)
+    sun_az = phase * 0.35
+    sun_dir = normalize_vec3(math.cos(sun_az), math.sin(sun_az), max(0.2, sun_height))
+    sky_color = sky_color_for(sun_elev, sun_height)
+    return sun_dir, sun_height, sky_color
+
+
+def shade_color(
+    base: Tuple[int, int, int],
+    normal: Tuple[float, float, float],
+    sun_dir: Tuple[float, float, float],
+    sun_height: float,
+    sky_color: Tuple[int, int, int],
+    is_water: bool,
+) -> Tuple[int, int, int]:
+    dot = normal[0] * sun_dir[0] + normal[1] * sun_dir[1] + normal[2] * sun_dir[2]
+    dot = max(0.0, dot)
+    ambient = 0.22 + 0.35 * sun_height
+    diffuse = 0.6 * dot * (0.25 + 0.75 * sun_height)
+    light = ambient + diffuse
+    r = base[0] * light
+    g = base[1] * light
+    b = base[2] * light
+    sky_tint = 0.08 + 0.12 * sun_height
+    r = r * (1.0 - sky_tint) + sky_color[0] * sky_tint
+    g = g * (1.0 - sky_tint) + sky_color[1] * sky_tint
+    b = b * (1.0 - sky_tint) + sky_color[2] * sky_tint
+    if is_water:
+        reflect = 0.2 + 0.35 * sun_height
+        r = r * (1.0 - reflect) + sky_color[0] * reflect
+        g = g * (1.0 - reflect) + sky_color[1] * reflect
+        b = b * (1.0 - reflect) + sky_color[2] * reflect
+        spec = (dot ** 12) * (0.45 + 0.35 * sun_height)
+        r += 255.0 * spec
+        g += 255.0 * spec
+        b += 255.0 * spec
+    return (clamp_byte(r), clamp_byte(g), clamp_byte(b))
+
+
+def render_lit_surface(
+    surface,
+    base_colors: List[Tuple[int, int, int]],
+    normals: List[Tuple[float, float, float]],
+    water_mask: List[bool],
+    sun_dir: Tuple[float, float, float],
+    sun_height: float,
+    sky_color: Tuple[int, int, int],
+    width: int,
+    height: int,
+) -> None:
+    surface.lock()
+    for y in range(height):
+        row = y * width
+        for x in range(width):
+            idx = row + x
+            color = shade_color(
+                base_colors[idx],
+                normals[idx],
+                sun_dir,
+                sun_height,
+                sky_color,
+                water_mask[idx],
+            )
+            surface.set_at((x, y), color)
+    surface.unlock()
+
+
+def build_world_data(
+    sim: Simulation,
+) -> Tuple[List[Tuple[int, int, int]], List[bool], List[Tuple[float, float, float]]]:
+    heights, temps, rains = build_fields(sim.width, sim.height, sim.seed)
+    base_colors: List[Tuple[int, int, int]] = []
+    water_mask: List[bool] = []
+    for idx, height in enumerate(heights):
+        base_colors.append(color_for(height, temps[idx], rains[idx]))
+        water_mask.append(height < WATER_LEVEL)
+    normals = build_normals(heights, sim.width, sim.height)
+    return base_colors, water_mask, normals
+
+
 def build_world_surface(sim: Simulation):
     import pygame
 
-    heights, temps, rains = build_fields(sim.width, sim.height, sim.seed)
+    base_colors, water_mask, normals = build_world_data(sim)
     surface = pygame.Surface((sim.width, sim.height))
-    for y in range(sim.height):
-        row = y * sim.width
-        for x in range(sim.width):
-            idx = row + x
-            surface.set_at((x, y), color_for(heights[idx], temps[idx], rains[idx]))
-    return surface
+    sun_dir, sun_height, sky_color = sun_state(0.0)
+    render_lit_surface(
+        surface,
+        base_colors,
+        normals,
+        water_mask,
+        sun_dir,
+        sun_height,
+        sky_color,
+        sim.width,
+        sim.height,
+    )
+    return surface, base_colors, water_mask, normals
 
 
 def viewport_dim(world_dim: int) -> int:
@@ -245,9 +378,9 @@ def run_window(sim: Simulation) -> int:
     view_size = (viewport_dim(world_size[0]), viewport_dim(world_size[1]))
     screen = pygame.display.set_mode(view_size)
     pygame.display.set_caption("Microverse")
-    base_surface = build_world_surface(sim)
+    base_surface, base_colors, water_mask, normals = build_world_surface(sim)
     if scale != 1:
-        world_surface = pygame.transform.scale(base_surface, world_size)
+        world_surface = pygame.Surface(world_size)
     else:
         world_surface = base_surface
     camera_x = max(0.0, (world_size[0] - view_size[0]) * 0.5)
@@ -317,7 +450,22 @@ def run_window(sim: Simulation) -> int:
         if sim_dt > 0.0:
             sim.step(sim_dt)
             sim_time += sim_dt
+        sun_dir, sun_height, sky_color = sun_state(sim_time)
+        render_lit_surface(
+            base_surface,
+            base_colors,
+            normals,
+            water_mask,
+            sun_dir,
+            sun_height,
+            sky_color,
+            sim.width,
+            sim.height,
+        )
+        if scale != 1:
+            pygame.transform.scale(base_surface, world_size, world_surface)
         view_rect = pygame.Rect(int(camera_x), int(camera_y), view_size[0], view_size[1])
+        screen.fill(sky_color)
         screen.blit(world_surface, (0, 0), view_rect)
         hud_lines = [
             f"Seed: {sim.seed}",

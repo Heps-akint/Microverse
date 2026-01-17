@@ -35,7 +35,7 @@ Acceptance criteria:
 ---
 
 ## PRD-04: Day/night lighting + sky/water cues
-- [ ] Passes
+- [x] Passes
 
 Acceptance criteria:
 - Sun direction changes over time and affects shading.

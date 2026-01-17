@@ -730,6 +730,90 @@ def viewport_dim(world_dim: int) -> int:
     return min(world_dim, target)
 
 
+def update_history(history: List[float], value: float, max_len: int) -> None:
+    history.append(value)
+    if len(history) > max_len:
+        del history[: len(history) - max_len]
+
+
+def draw_series(pygame, surface, rect, series: List[float], color: Tuple[int, int, int], scale: float) -> None:
+    if len(series) < 2 or rect.width < 2 or rect.height < 2:
+        return
+    scale = max(scale, 1e-6)
+    span = len(series) - 1
+    points = []
+    for idx, value in enumerate(series):
+        t = idx / span if span else 0.0
+        x = rect.left + int(t * (rect.width - 1))
+        norm = clamp_unit(value / scale)
+        y = rect.bottom - 1 - int(norm * (rect.height - 1))
+        points.append((x, y))
+    if len(points) >= 2:
+        pygame.draw.lines(surface, color, False, points, 2)
+
+
+def draw_dashboard_panel(
+    pygame,
+    screen,
+    panel_rect,
+    font,
+    plant_history: List[float],
+    herb_history: List[float],
+    pred_history: List[float],
+) -> None:
+    panel_bg = (18, 18, 22)
+    panel_border = (60, 60, 70)
+    text_color = (220, 220, 230)
+    subtitle_color = (170, 170, 185)
+    plant_color = (80, 200, 120)
+    herb_color = (220, 200, 80)
+    pred_color = (220, 80, 80)
+    pygame.draw.rect(screen, panel_bg, panel_rect)
+    pygame.draw.rect(screen, panel_border, panel_rect, 1)
+    padding = 10
+    cursor_x = panel_rect.left + padding
+    cursor_y = panel_rect.top + padding
+    title = font.render("Dashboard", True, text_color)
+    screen.blit(title, (cursor_x, cursor_y))
+    cursor_y += title.get_height() + 6
+    subtitle = font.render("Timeseries", True, subtitle_color)
+    screen.blit(subtitle, (cursor_x, cursor_y))
+    cursor_y += subtitle.get_height() + 6
+    plot_height = int(panel_rect.height * 0.35)
+    plot_rect = pygame.Rect(
+        cursor_x,
+        cursor_y,
+        panel_rect.width - padding * 2,
+        plot_height,
+    )
+    pygame.draw.rect(screen, (26, 26, 32), plot_rect)
+    for idx in range(1, 4):
+        y = plot_rect.top + int(plot_rect.height * idx / 4)
+        pygame.draw.line(screen, (40, 40, 46), (plot_rect.left, y), (plot_rect.right, y), 1)
+    inner_plot = plot_rect.inflate(-4, -4)
+    pop_scale = 1.0
+    if herb_history:
+        pop_scale = max(pop_scale, max(herb_history))
+    if pred_history:
+        pop_scale = max(pop_scale, max(pred_history))
+    draw_series(pygame, screen, inner_plot, plant_history, plant_color, 1.0)
+    draw_series(pygame, screen, inner_plot, herb_history, herb_color, pop_scale)
+    draw_series(pygame, screen, inner_plot, pred_history, pred_color, pop_scale)
+    cursor_y = plot_rect.bottom + 8
+    plant_value = plant_history[-1] if plant_history else 0.0
+    herb_value = herb_history[-1] if herb_history else 0.0
+    pred_value = pred_history[-1] if pred_history else 0.0
+    entries = [
+        (plant_color, f"Plants: {plant_value:.2f}"),
+        (herb_color, f"Herb: {int(round(herb_value))}"),
+        (pred_color, f"Pred: {int(round(pred_value))}"),
+    ]
+    for color, text in entries:
+        label = font.render(text, True, color)
+        screen.blit(label, (cursor_x, cursor_y))
+        cursor_y += label.get_height() + 4
+
+
 def run_window(sim: Simulation) -> int:
     try:
         import pygame
@@ -743,7 +827,8 @@ def run_window(sim: Simulation) -> int:
     scale = DEFAULT_SCALE
     world_size = (sim.width * scale, sim.height * scale)
     view_size = (viewport_dim(world_size[0]), viewport_dim(world_size[1]))
-    screen = pygame.display.set_mode(view_size)
+    panel_width = max(200, view_size[0] // 3)
+    screen = pygame.display.set_mode((view_size[0] + panel_width, view_size[1]))
     pygame.display.set_caption("Microverse")
     base_surface, base_colors, water_mask, normals = build_world_surface(sim)
     if scale != 1:
@@ -760,6 +845,21 @@ def run_window(sim: Simulation) -> int:
     sim_time = 0.0
     font = pygame.font.Font(None, 20)
     clock = pygame.time.Clock()
+    history_len = 300
+    plant_history: List[float] = []
+    herb_history: List[float] = []
+    pred_history: List[float] = []
+    panel_rect = pygame.Rect(view_size[0], 0, panel_width, view_size[1])
+
+    def sample_history() -> None:
+        plant_mean = 0.0
+        if sim.plant_biomass:
+            plant_mean = sum(sim.plant_biomass) / len(sim.plant_biomass)
+        update_history(plant_history, plant_mean, history_len)
+        update_history(herb_history, float(len(sim.herbivore_x)), history_len)
+        update_history(pred_history, float(len(sim.predator_x)), history_len)
+
+    sample_history()
     running = True
     while running:
         frame_dt = clock.tick(60) / 1000.0
@@ -817,6 +917,7 @@ def run_window(sim: Simulation) -> int:
         if sim_dt > 0.0:
             sim.step(sim_dt)
             sim_time += sim_dt
+            sample_history()
         sun_dir, sun_height, sky_color = sun_state(sim_time)
         render_lit_surface(
             base_surface,
@@ -834,6 +935,15 @@ def run_window(sim: Simulation) -> int:
         view_rect = pygame.Rect(int(camera_x), int(camera_y), view_size[0], view_size[1])
         screen.fill(sky_color)
         screen.blit(world_surface, (0, 0), view_rect)
+        draw_dashboard_panel(
+            pygame,
+            screen,
+            panel_rect,
+            font,
+            plant_history,
+            herb_history,
+            pred_history,
+        )
         hud_lines = [
             f"Seed: {sim.seed}",
             f"Sim time: {sim_time:.2f}s",

@@ -11,7 +11,7 @@ Rules:
 
 ## Now (highest priority first)
 
-1) [ ] TASK-PRD-07-A: Dashboard panel + population timeseries plot
+1) [x] TASK-PRD-07-A: Dashboard panel + population timeseries plot
    - PRD: PRD-07
    - What to change: Add a right-side dashboard panel in pygame and render a scrolling timeseries plot for plants/herbivores/predators.
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`

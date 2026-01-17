@@ -47,7 +47,7 @@ Rules:
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
    - Completion definition: Export data structures are populated deterministically during windowed runs.
 
-7) [ ] TASK-PRD-09-B2: Build HTML report writer with embedded plots
+7) [x] TASK-PRD-09-B2: Build HTML report writer with embedded plots
    - PRD: PRD-09
    - What to change: Add a report builder that renders plots (timeseries + heatmap) via matplotlib, embeds them as base64 in HTML, and includes seed/parameters + event log.
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`

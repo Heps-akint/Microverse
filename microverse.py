@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 import argparse
+import base64
 import hashlib
+import html
+import io
 import math
 from typing import Dict, List, Optional, Tuple
 
@@ -761,6 +764,176 @@ def screenshot_filename(seed: int, tick: int) -> str:
     return f"microverse_seed{seed}_tick{tick:010d}.png"
 
 
+def _figure_to_base64(plt, fig) -> str:
+    buffer = io.BytesIO()
+    fig.savefig(buffer, format="png", dpi=120, bbox_inches="tight")
+    plt.close(fig)
+    return base64.b64encode(buffer.getvalue()).decode("ascii")
+
+
+def _plot_timeseries_png(
+    plt, plant_history: List[float], herb_history: List[float], pred_history: List[float]
+) -> str:
+    fig, ax = plt.subplots(figsize=(6.2, 2.4), dpi=120)
+    if not (plant_history or herb_history or pred_history):
+        ax.text(0.5, 0.5, "No history data", ha="center", va="center", transform=ax.transAxes)
+        ax.set_axis_off()
+        return _figure_to_base64(plt, fig)
+    if plant_history:
+        ax.plot(range(len(plant_history)), plant_history, label="Plants", color="#3a8f3a", linewidth=1.6)
+    if herb_history:
+        ax.plot(range(len(herb_history)), herb_history, label="Herbivores", color="#c0872b", linewidth=1.4)
+    if pred_history:
+        ax.plot(range(len(pred_history)), pred_history, label="Predators", color="#9a3a3a", linewidth=1.4)
+    ax.set_xlabel("Step")
+    ax.set_ylabel("Population")
+    ax.grid(True, alpha=0.3, linewidth=0.5)
+    ax.legend(loc="upper right", fontsize=8, frameon=False)
+    return _figure_to_base64(plt, fig)
+
+
+def _plot_heatmap_png(
+    plt,
+    plant_biomass: List[float],
+    water_mask: List[bool],
+    width: int,
+    height: int,
+) -> str:
+    fig, ax = plt.subplots(figsize=(4.2, 4.2), dpi=120)
+    expected = max(0, width * height)
+    if not plant_biomass or expected <= 0 or len(plant_biomass) < expected:
+        ax.text(0.5, 0.5, "No heatmap data", ha="center", va="center", transform=ax.transAxes)
+        ax.set_axis_off()
+        return _figure_to_base64(plt, fig)
+    grid: List[List[float]] = []
+    for y in range(height):
+        row = []
+        offset = y * width
+        for x in range(width):
+            idx = offset + x
+            value = plant_biomass[idx]
+            if water_mask and idx < len(water_mask) and water_mask[idx]:
+                value = 0.0
+            row.append(value)
+        grid.append(row)
+    ax.imshow(grid, cmap="YlGn", vmin=0.0, vmax=1.0, origin="upper")
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_title("Plant Biomass", fontsize=10)
+    return _figure_to_base64(plt, fig)
+
+
+def _format_float(value: object, digits: int = 2) -> str:
+    try:
+        return f"{float(value):.{digits}f}"
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def write_html_report(report_snapshot: Dict[str, object], output_path: str) -> None:
+    try:
+        import matplotlib
+    except ModuleNotFoundError as exc:
+        raise SystemExit(
+            "matplotlib is required for HTML reports. Install with: python -m pip install matplotlib"
+        ) from exc
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    seed = report_snapshot.get("seed", 0)
+    width = int(report_snapshot.get("width", 0) or 0)
+    height = int(report_snapshot.get("height", 0) or 0)
+    rainfall_scale = report_snapshot.get("rainfall_scale", 1.0)
+    tick = report_snapshot.get("tick", 0)
+    sim_time = report_snapshot.get("sim_time", 0.0)
+    grid_text = f"{width} x {height}"
+    plant_history = list(report_snapshot.get("plant_history", []))
+    herb_history = list(report_snapshot.get("herb_history", []))
+    pred_history = list(report_snapshot.get("pred_history", []))
+    plant_biomass = list(report_snapshot.get("plant_biomass", []))
+    water_mask = list(report_snapshot.get("water_mask", []))
+    event_log = list(report_snapshot.get("event_log", []))
+
+    timeseries_b64 = _plot_timeseries_png(plt, plant_history, herb_history, pred_history)
+    heatmap_b64 = _plot_heatmap_png(plt, plant_biomass, water_mask, width, height)
+
+    events_html: List[str] = []
+    if event_log:
+        for event in event_log:
+            label = html.escape(str(event.get("label", "")))
+            detail = html.escape(str(event.get("detail", "")))
+            tick_value = html.escape(str(event.get("tick", "")))
+            sim_value = html.escape(_format_float(event.get("sim_time", ""), 2))
+            story = html.escape(str(event.get("story", "")))
+            if detail:
+                label_text = f"{label} ({detail})"
+            else:
+                label_text = label
+            events_html.append(
+                "<li><strong>"
+                + label_text
+                + "</strong> - tick "
+                + tick_value
+                + ", t="
+                + sim_value
+                + "s<br><span class=\"story\">"
+                + story
+                + "</span></li>"
+            )
+    else:
+        events_html.append("<li>No events logged.</li>")
+
+    html_lines = [
+        "<!doctype html>",
+        "<html>",
+        "<head>",
+        "<meta charset=\"utf-8\">",
+        "<title>Microverse Report</title>",
+        "<style>",
+        "body { font-family: Arial, sans-serif; margin: 24px; color: #222; background: #fafafa; }",
+        "h1 { margin-top: 0; }",
+        "section { background: #fff; padding: 16px 20px; margin-bottom: 18px; border-radius: 8px; "
+        "box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); }",
+        "table { border-collapse: collapse; width: 100%; }",
+        "th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #eee; }",
+        "img { max-width: 100%; height: auto; display: block; }",
+        ".plots { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }",
+        ".story { color: #444; }",
+        "</style>",
+        "</head>",
+        "<body>",
+        "<h1>Microverse Report</h1>",
+        "<section>",
+        "<h2>Parameters</h2>",
+        "<table>",
+        "<tr><th>Seed</th><td>" + html.escape(str(seed)) + "</td></tr>",
+        "<tr><th>Grid</th><td>" + html.escape(grid_text) + "</td></tr>",
+        "<tr><th>Rainfall scale</th><td>" + html.escape(_format_float(rainfall_scale, 2)) + "</td></tr>",
+        "<tr><th>Tick</th><td>" + html.escape(str(tick)) + "</td></tr>",
+        "<tr><th>Sim time</th><td>" + html.escape(_format_float(sim_time, 2)) + "s</td></tr>",
+        "</table>",
+        "</section>",
+        "<section>",
+        "<h2>Plots</h2>",
+        "<div class=\"plots\">",
+        "<div><h3>Population Timeseries</h3><img src=\"data:image/png;base64," + timeseries_b64 + "\"></div>",
+        "<div><h3>Plant Biomass Heatmap</h3><img src=\"data:image/png;base64," + heatmap_b64 + "\"></div>",
+        "</div>",
+        "</section>",
+        "<section>",
+        "<h2>Event Log</h2>",
+        "<ul>",
+        *events_html,
+        "</ul>",
+        "</section>",
+        "</body>",
+        "</html>",
+    ]
+
+    with open(output_path, "w", encoding="utf-8") as handle:
+        handle.write("\n".join(html_lines))
+
+
 def detect_event_details(
     plant_history: List[float],
     herb_history: List[float],
@@ -1160,6 +1333,8 @@ def run_window(sim: Simulation) -> int:
         "plant_history": [],
         "herb_history": [],
         "pred_history": [],
+        "plant_biomass": list(sim.plant_biomass),
+        "water_mask": list(sim.water_mask),
         "event_log": [],
     }
 
@@ -1200,6 +1375,7 @@ def run_window(sim: Simulation) -> int:
         report_snapshot["plant_history"] = list(plant_history)
         report_snapshot["herb_history"] = list(herb_history)
         report_snapshot["pred_history"] = list(pred_history)
+        report_snapshot["plant_biomass"] = list(sim.plant_biomass)
 
     def update_events() -> None:
         nonlocal story_age, story_text

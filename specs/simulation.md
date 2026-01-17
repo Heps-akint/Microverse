@@ -10,3 +10,4 @@ MVP climate:
 - rainfall adds moisture
 - evaporation removes moisture (depends on temperature)
 - plants consume moisture
+- rivers approximated via flow accumulation from height + rainfall

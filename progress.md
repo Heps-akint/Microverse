@@ -95,3 +95,12 @@ Purpose: cross-session memory. DO NOT rewrite history. Append new entries only.
 - If blocked: `python` executable missing; use `python3` or install python.
 - Plan update made: Yes
 - PRD update made: Yes
+
+### 2026-01-17 — Iteration 011 — TASK-PLAN
+- Goal: Refresh implementation plan from PRD/specs and current repo state.
+- What changed: Updated `IMPLEMENTATION_PLAN.md` with next tasks for PRD-05/07/08/09; added/filled specs for dashboard, events, and river approximation.
+- Commands run + results: `ls`; `cat AGENTS.md PRD.md IMPLEMENTATION_PLAN.md progress.md`; `ls specs`; `cat specs/00_overview.md specs/dashboard.md specs/ecology.md specs/export.md specs/renderer.md specs/simulation.md`; `cat ralph/PROMPT_plan.md`; `sed -n '1,240p' microverse.py`; `sed -n '240,520p' microverse.py`; `sed -n '520,1040p' microverse.py`; `date +%Y-%m-%d`; `git status --short` (clean).
+- Outcome: Plan refreshed and specs clarified for remaining PRD items.
+- If blocked: N/A
+- Plan update made: Yes
+- PRD update made: No

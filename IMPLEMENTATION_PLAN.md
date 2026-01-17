@@ -23,7 +23,7 @@ Rules:
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`; `python microverse.py --seed 123`
    - Completion definition: Running with `--seed 123` opens a window and shows the same world across runs.
 
-3) [ ] TASK-PRD-03-A: Deterministic heightmap + biome color fields
+3) [x] TASK-PRD-03-A: Deterministic heightmap + biome color fields
    - PRD: PRD-03
    - What to change: Implement height/temperature/rainfall fields and biome color mapping (no assets) and wire them into rendering.
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`

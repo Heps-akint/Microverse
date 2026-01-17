@@ -25,7 +25,7 @@ Acceptance criteria:
 ---
 
 ## PRD-03: Procedural terrain + biomes (no assets)
-- [ ] Passes
+- [x] Passes
 
 Acceptance criteria:
 - Terrain heightmap generated from noise/fractal function.

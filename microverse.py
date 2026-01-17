@@ -21,6 +21,7 @@ class Simulation:
     def __init__(self, width: int, height: int, seed: int) -> None:
         self.width = width
         self.height = height
+        self.seed = seed
         self.rng = LcgRng(seed)
         self.tick = 0
         self.cells = [self.rng.next_u32() for _ in range(width * height)]
@@ -60,31 +61,107 @@ def clamp_byte(value: float) -> int:
     return int(value)
 
 
-def build_heightmap(cells: List[int], width: int, height: int, passes: int = 2) -> List[int]:
-    heights = [cell & 0xFF for cell in cells]
-    for _ in range(passes):
-        next_heights = [0] * len(heights)
-        for y in range(height):
-            row = y * width
-            up = ((y - 1) % height) * width
-            down = ((y + 1) % height) * width
-            for x in range(width):
-                idx = row + x
-                left = row + (x - 1) % width
-                right = row + (x + 1) % width
-                total = (
-                    heights[idx]
-                    + heights[left]
-                    + heights[right]
-                    + heights[up + x]
-                    + heights[down + x]
-                )
-                next_heights[idx] = total // 5
-        heights = next_heights
-    return heights
+def clamp_unit(value: float) -> float:
+    if value < 0.0:
+        return 0.0
+    if value > 1.0:
+        return 1.0
+    return value
 
 
-def color_for(height: int, temp: int, moist: int) -> Tuple[int, int, int]:
+def lerp(a: float, b: float, t: float) -> float:
+    return a + (b - a) * t
+
+
+def smoothstep(t: float) -> float:
+    return t * t * (3.0 - 2.0 * t)
+
+
+def hash_u32(x: int, y: int, seed: int) -> int:
+    n = (x * 374761393 + y * 668265263 + seed * 700001) & MASK32
+    n = (n ^ (n >> 13)) & MASK32
+    n = (n * 1274126177) & MASK32
+    n ^= n >> 16
+    return n & MASK32
+
+
+def hash_unit(x: int, y: int, seed: int) -> float:
+    return hash_u32(x, y, seed) / float(MASK32)
+
+
+def value_noise(x: int, y: int, seed: int, scale: int) -> float:
+    if scale <= 1:
+        return hash_unit(x, y, seed)
+    x0 = (x // scale) * scale
+    y0 = (y // scale) * scale
+    x1 = x0 + scale
+    y1 = y0 + scale
+    sx = (x - x0) / float(scale)
+    sy = (y - y0) / float(scale)
+    u = smoothstep(sx)
+    v = smoothstep(sy)
+    v00 = hash_unit(x0, y0, seed)
+    v10 = hash_unit(x1, y0, seed)
+    v01 = hash_unit(x0, y1, seed)
+    v11 = hash_unit(x1, y1, seed)
+    ix0 = lerp(v00, v10, u)
+    ix1 = lerp(v01, v11, u)
+    return lerp(ix0, ix1, v)
+
+
+def fbm_noise(x: int, y: int, seed: int, scales: List[int]) -> float:
+    total = 0.0
+    amplitude = 1.0
+    norm = 0.0
+    for scale in scales:
+        total += value_noise(x, y, seed, scale) * amplitude
+        norm += amplitude
+        amplitude *= 0.5
+    if norm == 0.0:
+        return 0.0
+    return total / norm
+
+
+def build_noise_scales(width: int, height: int) -> List[int]:
+    min_dim = max(4, min(width, height))
+    base = max(4, min_dim // 2)
+    scales = [base]
+    for _ in range(3):
+        base = max(2, base // 2)
+        if base == scales[-1]:
+            break
+        scales.append(base)
+    return scales
+
+
+def build_fields(width: int, height: int, seed: int) -> Tuple[List[int], List[int], List[int]]:
+    scales = build_noise_scales(width, height)
+    size = width * height
+    heights = [0] * size
+    temps = [0] * size
+    rains = [0] * size
+    for y in range(height):
+        row = y * width
+        if height > 1:
+            lat = abs((y / (height - 1)) * 2.0 - 1.0)
+            lat_warm = 1.0 - lat
+        else:
+            lat_warm = 1.0
+        for x in range(width):
+            idx = row + x
+            height_noise = fbm_noise(x, y, seed + 101, scales)
+            temp_noise = fbm_noise(x, y, seed + 202, scales)
+            rain_noise = fbm_noise(x, y, seed + 303, scales)
+            height_val = clamp_unit(height_noise)
+            temp_val = clamp_unit(0.6 * temp_noise + 0.4 * lat_warm - 0.2 * height_val)
+            rain_val = clamp_unit(0.7 * rain_noise + 0.3 * (1.0 - height_val))
+            heights[idx] = clamp_byte(height_val * 255.0)
+            temps[idx] = clamp_byte(temp_val * 255.0)
+            rains[idx] = clamp_byte(rain_val * 255.0)
+    return heights, temps, rains
+
+
+def color_for(height: int, temp: int, rain: int) -> Tuple[int, int, int]:
     water_level = 90
     if height < water_level:
         depth = height / float(water_level)
@@ -93,14 +170,29 @@ def color_for(height: int, temp: int, moist: int) -> Tuple[int, int, int]:
             clamp_byte(40 + 80 * depth),
             clamp_byte(120 + 100 * depth),
         )
-    if height > 220:
+    if height > 230:
         return (230, 230, 230)
-    if moist < 80:
-        base = (194, 178, 128)
-    elif temp < 110:
-        base = (80, 140, 70)
+    if height > 210:
+        base = (120, 120, 120)
+    elif temp < 80:
+        if rain < 90:
+            base = (160, 160, 150)
+        else:
+            base = (90, 130, 110)
+    elif temp > 170:
+        if rain < 80:
+            base = (210, 185, 110)
+        elif rain < 150:
+            base = (160, 170, 90)
+        else:
+            base = (50, 120, 70)
     else:
-        base = (60, 120, 60)
+        if rain < 90:
+            base = (170, 170, 120)
+        elif rain < 160:
+            base = (90, 150, 90)
+        else:
+            base = (70, 140, 90)
     elevation = (height - water_level) / float(255 - water_level)
     shade = 0.6 + 0.4 * elevation
     return (
@@ -113,16 +205,13 @@ def color_for(height: int, temp: int, moist: int) -> Tuple[int, int, int]:
 def build_world_surface(sim: Simulation):
     import pygame
 
-    heights = build_heightmap(sim.cells, sim.width, sim.height)
+    heights, temps, rains = build_fields(sim.width, sim.height, sim.seed)
     surface = pygame.Surface((sim.width, sim.height))
     for y in range(sim.height):
         row = y * sim.width
         for x in range(sim.width):
             idx = row + x
-            val = sim.cells[idx]
-            temp = (val >> 8) & 0xFF
-            moist = (val >> 16) & 0xFF
-            surface.set_at((x, y), color_for(heights[idx], temp, moist))
+            surface.set_at((x, y), color_for(heights[idx], temps[idx], rains[idx]))
     return surface
 
 

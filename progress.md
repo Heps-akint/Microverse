@@ -140,3 +140,12 @@ Purpose: cross-session memory. DO NOT rewrite history. Append new entries only.
 - If blocked: `python` executable missing; use `python3` or install python.
 - Plan update made: Yes
 - PRD update made: No
+
+### 2026-01-17 — Iteration 016 — TASK-PRD-08-B
+- Goal: Trigger a counterfactual rerun with a rainfall perturbation and report whether events persist.
+- What changed: Added a rainfall scale parameter to `Simulation`, implemented a counterfactual rerun that checks event persistence, and appended counterfactual results to event stories/logs.
+- Commands run + results: `python -m py_compile microverse.py` (failed: python not found); `python3 -m py_compile microverse.py` (ok); `python microverse.py --selftest --seed 123 --steps 300` (failed: python not found); `python3 microverse.py --selftest --seed 123 --steps 300` (DIGEST=10abd142f6d87941117fb93aef871a698471754ae1fa4ecf25168da00d1f288d).
+- Outcome: Counterfactual persistence results now appear alongside event stories; deterministic selftest digest unchanged under python3.
+- If blocked: `python` executable missing; use `python3` or install python.
+- Plan update made: Yes
+- PRD update made: Yes

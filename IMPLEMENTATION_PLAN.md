@@ -29,7 +29,7 @@ Rules:
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
    - Completion definition: A deterministic causal story appears for detected events.
 
-4) [ ] TASK-PRD-08-B: Counterfactual rerun comparison
+4) [x] TASK-PRD-08-B: Counterfactual rerun comparison
    - PRD: PRD-08
    - What to change: Trigger a rerun with a single parameter perturbation (e.g., rainfall scale) and report whether the event persists.
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`

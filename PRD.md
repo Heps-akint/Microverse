@@ -75,7 +75,7 @@ Acceptance criteria:
 ---
 
 ## PRD-08: Explainability + counterfactual re-sim
-- [ ] Passes
+- [x] Passes
 
 Acceptance criteria:
 - System outputs a short causal story when an event is detected (heuristic is fine).

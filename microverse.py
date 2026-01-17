@@ -2,7 +2,7 @@
 import argparse
 import hashlib
 import math
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 
 MASK32 = 0xFFFFFFFF
@@ -35,6 +35,7 @@ CRASH_DROP = 0.5
 REGIME_WINDOW = 80
 REGIME_SHIFT_DELTA = 0.12
 EVENT_HOLD_STEPS = 180
+COUNTERFACTUAL_RAINFALL_SCALE = 0.85
 
 
 class LcgRng:
@@ -47,7 +48,7 @@ class LcgRng:
 
 
 class Simulation:
-    def __init__(self, width: int, height: int, seed: int) -> None:
+    def __init__(self, width: int, height: int, seed: int, rainfall_scale: float = 1.0) -> None:
         self.width = width
         self.height = height
         self.seed = seed
@@ -58,7 +59,8 @@ class Simulation:
         heights, temps, rains = build_fields(width, height, seed)
         self.heights = heights
         self.base_temperature = [temp / 255.0 for temp in temps]
-        self.base_rainfall = [rain / 255.0 for rain in rains]
+        self.rainfall_scale = rainfall_scale
+        self.base_rainfall = [clamp_unit((rain / 255.0) * rainfall_scale) for rain in rains]
         self.flow_accum, self.river_mask, self.river_strength = build_flow_fields(
             heights, self.base_rainfall, width, height
         )
@@ -747,6 +749,113 @@ def mean(values: List[float]) -> float:
     return sum(values) / len(values)
 
 
+def event_key(label: str, detail: str) -> Tuple[str, str]:
+    if label == "Regime shift":
+        direction = detail.split()[0] if detail else ""
+        return (label, direction)
+    return (label, detail)
+
+
+def detect_event_details(
+    plant_history: List[float],
+    herb_history: List[float],
+    pred_history: List[float],
+    crash_window: int,
+    regime_window: int,
+) -> Dict[str, Tuple[str, Optional[float]]]:
+    events: Dict[str, Tuple[str, Optional[float]]] = {}
+    herb_count = int(round(herb_history[-1])) if herb_history else 0
+    pred_count = int(round(pred_history[-1])) if pred_history else 0
+    extinction_labels = []
+    if herb_history and herb_count == 0:
+        extinction_labels.append("Herbivores")
+    if pred_history and pred_count == 0:
+        extinction_labels.append("Predators")
+    if extinction_labels:
+        detail = ", ".join(extinction_labels)
+        events["Extinction"] = (detail, None)
+    crash_labels = []
+    if crash_window >= 2 and len(herb_history) >= crash_window:
+        window = herb_history[-crash_window:]
+        peak = max(window)
+        if peak > 0.0 and herb_history[-1] <= peak * (1.0 - CRASH_DROP):
+            crash_labels.append("Herbivores")
+    if crash_window >= 2 and len(pred_history) >= crash_window:
+        window = pred_history[-crash_window:]
+        peak = max(window)
+        if peak > 0.0 and pred_history[-1] <= peak * (1.0 - CRASH_DROP):
+            crash_labels.append("Predators")
+    if crash_labels:
+        detail = ", ".join(crash_labels)
+        events["Crash"] = (detail, None)
+    if len(plant_history) >= regime_window * 2:
+        recent = mean(plant_history[-regime_window:])
+        prior = mean(plant_history[-2 * regime_window : -regime_window])
+        delta = recent - prior
+        if abs(delta) >= REGIME_SHIFT_DELTA:
+            trend = "Up" if delta > 0.0 else "Down"
+            detail = f"{trend} {abs(delta):.2f}"
+            events["Regime shift"] = (detail, delta)
+    return events
+
+
+def format_counterfactual_result(persists: bool) -> str:
+    delta = COUNTERFACTUAL_RAINFALL_SCALE - 1.0
+    percent = abs(int(round(delta * 100.0)))
+    direction = "lower" if delta < 0.0 else "higher"
+    outcome = "persists" if persists else "clears"
+    return f"Counterfactual ({percent}% {direction} rainfall): {outcome}."
+
+
+def run_counterfactual(
+    seed: int,
+    width: int,
+    height: int,
+    steps: int,
+    dt: float,
+    target_label: str,
+    target_detail: str,
+) -> bool:
+    if steps <= 0:
+        return False
+    dt = max(1e-4, dt)
+    sim = Simulation(width=width, height=height, seed=seed, rainfall_scale=COUNTERFACTUAL_RAINFALL_SCALE)
+    history_len = 300
+    plant_history: List[float] = []
+    herb_history: List[float] = []
+    pred_history: List[float] = []
+    crash_window = min(CRASH_WINDOW, history_len)
+    regime_window = min(REGIME_WINDOW, max(1, history_len // 2))
+    target_key = event_key(target_label, target_detail)
+
+    def sample_and_check() -> bool:
+        plant_mean = 0.0
+        if sim.plant_biomass:
+            plant_mean = sum(sim.plant_biomass) / len(sim.plant_biomass)
+        update_history(plant_history, plant_mean, history_len)
+        update_history(herb_history, float(len(sim.herbivore_x)), history_len)
+        update_history(pred_history, float(len(sim.predator_x)), history_len)
+        events = detect_event_details(
+            plant_history,
+            herb_history,
+            pred_history,
+            crash_window,
+            regime_window,
+        )
+        for label, (detail, _delta) in events.items():
+            if event_key(label, detail) == target_key:
+                return True
+        return False
+
+    if sample_and_check():
+        return True
+    for _ in range(steps):
+        sim.step(dt)
+        if sample_and_check():
+            return True
+    return False
+
+
 def wrap_text(font, text: str, max_width: int) -> List[str]:
     words = text.split()
     if not words:
@@ -1018,6 +1127,7 @@ def run_window(sim: Simulation) -> int:
     paused = False
     time_scale = 1.0
     sim_time = 0.0
+    sim_steps = 0
     font = pygame.font.Font(None, 20)
     clock = pygame.time.Clock()
     history_len = 300
@@ -1030,7 +1140,28 @@ def run_window(sim: Simulation) -> int:
     story_age = 0
     crash_window = min(CRASH_WINDOW, history_len)
     regime_window = min(REGIME_WINDOW, max(1, history_len // 2))
+    counterfactual_cache: Dict[Tuple[str, str], bool] = {}
+    last_sim_dt = 1.0 / 60.0
     panel_rect = pygame.Rect(view_size[0], 0, panel_width, view_size[1])
+
+    def counterfactual_line(label: str, detail: str) -> str:
+        steps = max(1, sim_steps)
+        if sim_steps > 0:
+            dt = max(1e-4, sim_time / sim_steps)
+        else:
+            dt = max(1e-4, last_sim_dt)
+        key = event_key(label, detail)
+        if key not in counterfactual_cache:
+            counterfactual_cache[key] = run_counterfactual(
+                sim.seed,
+                sim.width,
+                sim.height,
+                steps,
+                dt,
+                label,
+                detail,
+            )
+        return format_counterfactual_result(counterfactual_cache[key])
 
     def update_events() -> None:
         nonlocal story_age, story_text
@@ -1043,80 +1174,69 @@ def run_window(sim: Simulation) -> int:
             story_age -= 1
             if story_age == 0:
                 story_text = ""
-        extinction_labels = []
         herb_count = int(round(herb_history[-1])) if herb_history else 0
         pred_count = int(round(pred_history[-1])) if pred_history else 0
         plant_mean = plant_history[-1] if plant_history else 0.0
         moisture_mean = mean(sim.moisture)
-        if herb_history and herb_count == 0:
-            extinction_labels.append("Herbivores")
-        if pred_history and pred_count == 0:
-            extinction_labels.append("Predators")
-        if extinction_labels:
-            detail = ", ".join(extinction_labels)
+        events = detect_event_details(
+            plant_history,
+            herb_history,
+            pred_history,
+            crash_window,
+            regime_window,
+        )
+        if "Extinction" in events:
+            detail, _ = events["Extinction"]
             if event_age["extinction"] == 0 or event_detail["extinction"] != detail:
                 story_text = build_causal_story(
                     "Extinction",
-                    extinction_labels,
+                    detail.split(", "),
                     plant_mean,
                     moisture_mean,
                     herb_count,
                     pred_count,
                     herb_history,
                 )
+                story_text = f"{story_text} {counterfactual_line('Extinction', detail)}"
                 story_age = EVENT_HOLD_STEPS
                 print(f"EVENT: Extinction ({detail}) STORY: {story_text}")
             event_age["extinction"] = EVENT_HOLD_STEPS
             event_detail["extinction"] = detail
-        crash_labels = []
-        if crash_window >= 2 and len(herb_history) >= crash_window:
-            window = herb_history[-crash_window:]
-            peak = max(window)
-            if peak > 0.0 and herb_history[-1] <= peak * (1.0 - CRASH_DROP):
-                crash_labels.append("Herbivores")
-        if crash_window >= 2 and len(pred_history) >= crash_window:
-            window = pred_history[-crash_window:]
-            peak = max(window)
-            if peak > 0.0 and pred_history[-1] <= peak * (1.0 - CRASH_DROP):
-                crash_labels.append("Predators")
-        if crash_labels:
-            detail = ", ".join(crash_labels)
+        if "Crash" in events:
+            detail, _ = events["Crash"]
             if event_age["crash"] == 0 or event_detail["crash"] != detail:
                 story_text = build_causal_story(
                     "Crash",
-                    crash_labels,
+                    detail.split(", "),
                     plant_mean,
                     moisture_mean,
                     herb_count,
                     pred_count,
                     herb_history,
                 )
+                story_text = f"{story_text} {counterfactual_line('Crash', detail)}"
                 story_age = EVENT_HOLD_STEPS
                 print(f"EVENT: Crash ({detail}) STORY: {story_text}")
             event_age["crash"] = EVENT_HOLD_STEPS
             event_detail["crash"] = detail
-        if len(plant_history) >= regime_window * 2:
-            recent = mean(plant_history[-regime_window:])
-            prior = mean(plant_history[-2 * regime_window : -regime_window])
-            delta = recent - prior
-            if abs(delta) >= REGIME_SHIFT_DELTA:
-                trend = "Up" if delta > 0.0 else "Down"
-                detail = f"{trend} {abs(delta):.2f}"
-                if event_age["regime"] == 0 or event_detail["regime"] != detail:
-                    story_text = build_causal_story(
-                        "Regime shift",
-                        [],
-                        plant_mean,
-                        moisture_mean,
-                        herb_count,
-                        pred_count,
-                        herb_history,
-                        plant_delta=delta,
-                    )
-                    story_age = EVENT_HOLD_STEPS
-                    print(f"EVENT: Regime shift ({detail}) STORY: {story_text}")
-                event_age["regime"] = EVENT_HOLD_STEPS
-                event_detail["regime"] = detail
+        if "Regime shift" in events:
+            detail, delta = events["Regime shift"]
+            if event_age["regime"] == 0 or event_detail["regime"] != detail:
+                story_text = build_causal_story(
+                    "Regime shift",
+                    [],
+                    plant_mean,
+                    moisture_mean,
+                    herb_count,
+                    pred_count,
+                    herb_history,
+                    plant_delta=delta,
+                )
+                story_text = f"{story_text} {counterfactual_line('Regime shift', detail)}"
+                story_age = EVENT_HOLD_STEPS
+                print(f"EVENT: Regime shift ({detail}) STORY: {story_text}")
+            event_age["regime"] = EVENT_HOLD_STEPS
+            event_detail["regime"] = detail
 
     def sample_history() -> None:
         plant_mean = 0.0
@@ -1185,6 +1305,8 @@ def run_window(sim: Simulation) -> int:
         if sim_dt > 0.0:
             sim.step(sim_dt)
             sim_time += sim_dt
+            sim_steps += 1
+            last_sim_dt = sim_dt
             sample_history()
         sun_dir, sun_height, sky_color = sun_state(sim_time)
         render_lit_surface(

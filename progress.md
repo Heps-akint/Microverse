@@ -167,3 +167,12 @@ Purpose: cross-session memory. DO NOT rewrite history. Append new entries only.
 - If blocked: N/A
 - Plan update made: Yes
 - PRD update made: No
+
+### 2026-01-17 — Iteration 019 — TASK-PRD-09-B1
+- Goal: Capture report-ready data (events + history) for HTML export.
+- What changed: Added an append-only event log with label/detail/tick/time/story and a report snapshot that copies population histories for stable export inputs.
+- Commands run + results: `python -m py_compile microverse.py` (failed: python not found); `python microverse.py --selftest --seed 123 --steps 300` (failed: python not found); `python3 -m py_compile microverse.py` (ok); `python3 microverse.py --selftest --seed 123 --steps 300` (DIGEST=10abd142f6d87941117fb93aef871a698471754ae1fa4ecf25168da00d1f288d).
+- Outcome: Report data structures now populate deterministically during windowed runs.
+- If blocked: `python` executable missing; use `python3` or install python.
+- Plan update made: Yes
+- PRD update made: No

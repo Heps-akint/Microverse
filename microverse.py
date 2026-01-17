@@ -1149,6 +1149,19 @@ def run_window(sim: Simulation) -> int:
     last_sim_dt = 1.0 / 60.0
     panel_rect = pygame.Rect(view_size[0], 0, panel_width, view_size[1])
     pending_screenshot: Optional[str] = None
+    event_log: List[Dict[str, object]] = []
+    report_snapshot: Dict[str, object] = {
+        "seed": sim.seed,
+        "width": sim.width,
+        "height": sim.height,
+        "rainfall_scale": sim.rainfall_scale,
+        "tick": sim.tick,
+        "sim_time": sim_time,
+        "plant_history": [],
+        "herb_history": [],
+        "pred_history": [],
+        "event_log": [],
+    }
 
     def counterfactual_line(label: str, detail: str) -> str:
         steps = max(1, sim_steps)
@@ -1168,6 +1181,25 @@ def run_window(sim: Simulation) -> int:
                 detail,
             )
         return format_counterfactual_result(counterfactual_cache[key])
+
+    def log_event(label: str, detail: str, story: str) -> None:
+        event_log.append(
+            {
+                "label": label,
+                "detail": detail,
+                "tick": sim.tick,
+                "sim_time": sim_time,
+                "story": story,
+            }
+        )
+        report_snapshot["event_log"] = list(event_log)
+
+    def update_report_snapshot() -> None:
+        report_snapshot["tick"] = sim.tick
+        report_snapshot["sim_time"] = sim_time
+        report_snapshot["plant_history"] = list(plant_history)
+        report_snapshot["herb_history"] = list(herb_history)
+        report_snapshot["pred_history"] = list(pred_history)
 
     def update_events() -> None:
         nonlocal story_age, story_text
@@ -1206,6 +1238,7 @@ def run_window(sim: Simulation) -> int:
                 story_text = f"{story_text} {counterfactual_line('Extinction', detail)}"
                 story_age = EVENT_HOLD_STEPS
                 print(f"EVENT: Extinction ({detail}) STORY: {story_text}")
+                log_event("Extinction", detail, story_text)
             event_age["extinction"] = EVENT_HOLD_STEPS
             event_detail["extinction"] = detail
         if "Crash" in events:
@@ -1223,6 +1256,7 @@ def run_window(sim: Simulation) -> int:
                 story_text = f"{story_text} {counterfactual_line('Crash', detail)}"
                 story_age = EVENT_HOLD_STEPS
                 print(f"EVENT: Crash ({detail}) STORY: {story_text}")
+                log_event("Crash", detail, story_text)
             event_age["crash"] = EVENT_HOLD_STEPS
             event_detail["crash"] = detail
         if "Regime shift" in events:
@@ -1241,6 +1275,7 @@ def run_window(sim: Simulation) -> int:
                 story_text = f"{story_text} {counterfactual_line('Regime shift', detail)}"
                 story_age = EVENT_HOLD_STEPS
                 print(f"EVENT: Regime shift ({detail}) STORY: {story_text}")
+                log_event("Regime shift", detail, story_text)
             event_age["regime"] = EVENT_HOLD_STEPS
             event_detail["regime"] = detail
 
@@ -1252,6 +1287,7 @@ def run_window(sim: Simulation) -> int:
         update_history(herb_history, float(len(sim.herbivore_x)), history_len)
         update_history(pred_history, float(len(sim.predator_x)), history_len)
         update_events()
+        update_report_snapshot()
 
     sample_history()
     running = True

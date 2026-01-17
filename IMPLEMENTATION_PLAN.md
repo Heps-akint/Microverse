@@ -41,7 +41,7 @@ Rules:
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
    - Completion definition: Keypress writes a PNG with a deterministic filename and expected content.
 
-6) [ ] TASK-PRD-09-B1: Capture report-ready data (events + history)
+6) [x] TASK-PRD-09-B1: Capture report-ready data (events + history)
    - PRD: PRD-09
    - What to change: Track an append-only event log (label, detail, tick/time, story) plus snapshot the existing population history so exports have stable inputs.
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`

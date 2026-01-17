@@ -29,7 +29,7 @@ Rules:
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
    - Completion definition: Terrain and biome colors are deterministic from seed and visible in the renderer.
 
-4) [ ] TASK-PRD-02-A: Camera flight + time controls + HUD
+4) [x] TASK-PRD-02-A: Camera flight + time controls + HUD
    - PRD: PRD-02
    - What to change: Add camera movement controls, pause/1x/2x/4x/8x time scaling, and HUD text for seed/sim time/dt/fps.
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`; `python microverse.py --seed 123`

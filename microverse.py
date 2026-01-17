@@ -69,6 +69,14 @@ def clamp_unit(value: float) -> float:
     return value
 
 
+def clamp_range(value: float, lower: float, upper: float) -> float:
+    if value < lower:
+        return lower
+    if value > upper:
+        return upper
+    return value
+
+
 def lerp(a: float, b: float, t: float) -> float:
     return a + (b - a) * t
 
@@ -215,6 +223,13 @@ def build_world_surface(sim: Simulation):
     return surface
 
 
+def viewport_dim(world_dim: int) -> int:
+    target = int(world_dim * 0.75)
+    if target < 320:
+        target = 320
+    return min(world_dim, target)
+
+
 def run_window(sim: Simulation) -> int:
     try:
         import pygame
@@ -226,25 +241,103 @@ def run_window(sim: Simulation) -> int:
 
     pygame.init()
     scale = DEFAULT_SCALE
-    size = (sim.width * scale, sim.height * scale)
-    screen = pygame.display.set_mode(size)
+    world_size = (sim.width * scale, sim.height * scale)
+    view_size = (viewport_dim(world_size[0]), viewport_dim(world_size[1]))
+    screen = pygame.display.set_mode(view_size)
     pygame.display.set_caption("Microverse")
     base_surface = build_world_surface(sim)
     if scale != 1:
-        frame_surface = pygame.transform.scale(base_surface, size)
+        world_surface = pygame.transform.scale(base_surface, world_size)
     else:
-        frame_surface = base_surface
+        world_surface = base_surface
+    camera_x = max(0.0, (world_size[0] - view_size[0]) * 0.5)
+    camera_y = max(0.0, (world_size[1] - view_size[1]) * 0.5)
+    move_speed = 320.0
+    dragging = False
+    last_mouse = (0, 0)
+    paused = False
+    time_scale = 1.0
+    sim_time = 0.0
+    font = pygame.font.Font(None, 20)
     clock = pygame.time.Clock()
     running = True
     while running:
+        frame_dt = clock.tick(60) / 1000.0
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 running = False
-        screen.blit(frame_surface, (0, 0))
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    paused = not paused
+                elif event.key == pygame.K_1:
+                    time_scale = 1.0
+                    paused = False
+                elif event.key == pygame.K_2:
+                    time_scale = 2.0
+                    paused = False
+                elif event.key == pygame.K_4:
+                    time_scale = 4.0
+                    paused = False
+                elif event.key == pygame.K_8:
+                    time_scale = 8.0
+                    paused = False
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button in (2, 3):
+                dragging = True
+                last_mouse = event.pos
+            elif event.type == pygame.MOUSEBUTTONUP and event.button in (2, 3):
+                dragging = False
+            elif event.type == pygame.MOUSEMOTION and dragging:
+                dx = event.pos[0] - last_mouse[0]
+                dy = event.pos[1] - last_mouse[1]
+                camera_x -= dx
+                camera_y -= dy
+                last_mouse = event.pos
+        keys = pygame.key.get_pressed()
+        move_x = 0.0
+        move_y = 0.0
+        if keys[pygame.K_a] or keys[pygame.K_LEFT]:
+            move_x -= 1.0
+        if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+            move_x += 1.0
+        if keys[pygame.K_w] or keys[pygame.K_UP]:
+            move_y -= 1.0
+        if keys[pygame.K_s] or keys[pygame.K_DOWN]:
+            move_y += 1.0
+        if move_x or move_y:
+            camera_x += move_x * move_speed * frame_dt
+            camera_y += move_y * move_speed * frame_dt
+        max_x = max(0.0, world_size[0] - view_size[0])
+        max_y = max(0.0, world_size[1] - view_size[1])
+        camera_x = clamp_range(camera_x, 0.0, max_x)
+        camera_y = clamp_range(camera_y, 0.0, max_y)
+        active_scale = 0.0 if paused else time_scale
+        sim_dt = frame_dt * active_scale
+        if sim_dt > 0.0:
+            sim.step(sim_dt)
+            sim_time += sim_dt
+        view_rect = pygame.Rect(int(camera_x), int(camera_y), view_size[0], view_size[1])
+        screen.blit(world_surface, (0, 0), view_rect)
+        hud_lines = [
+            f"Seed: {sim.seed}",
+            f"Sim time: {sim_time:.2f}s",
+            f"dt: {sim_dt:.3f}s",
+            f"FPS: {clock.get_fps():.1f}",
+            f"Speed: {'paused' if paused else f'{time_scale:.0f}x'}",
+        ]
+        hud_surfaces = [font.render(line, True, (230, 230, 230)) for line in hud_lines]
+        hud_width = max(surface.get_width() for surface in hud_surfaces)
+        hud_height = sum(surface.get_height() for surface in hud_surfaces) + 2 * (len(hud_surfaces) - 1)
+        padding = 6
+        hud_rect = pygame.Rect(8, 8, hud_width + padding * 2, hud_height + padding * 2)
+        pygame.draw.rect(screen, (12, 12, 12), hud_rect)
+        pygame.draw.rect(screen, (60, 60, 60), hud_rect, 1)
+        y = hud_rect.top + padding
+        for surface in hud_surfaces:
+            screen.blit(surface, (hud_rect.left + padding, y))
+            y += surface.get_height() + 2
         pygame.display.flip()
-        clock.tick(30)
     pygame.quit()
     return 0
 

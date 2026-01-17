@@ -15,7 +15,7 @@ Acceptance criteria:
 ---
 
 ## PRD-02: Camera flight + time controls
-- [ ] Passes
+- [x] Passes
 
 Acceptance criteria:
 - WASD + mouse (or arrows) moves camera; you can “fly”.

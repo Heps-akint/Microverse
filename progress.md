@@ -50,3 +50,12 @@ Purpose: cross-session memory. DO NOT rewrite history. Append new entries only.
 - If blocked: `python` executable missing; use `python3` or install python.
 - Plan update made: Yes
 - PRD update made: Yes
+
+### 2026-01-17 — Iteration 006 — TASK-PRD-02-A
+- Goal: Add camera flight controls, time scaling, and a HUD with seed/sim time/dt/fps.
+- What changed: Implemented camera movement via WASD/arrows plus mouse drag, added pause and 1x/2x/4x/8x time scaling, and rendered a HUD panel with sim stats; added helpers for viewport sizing and camera clamping.
+- Commands run + results: `python -m py_compile microverse.py` (failed: python not found); `python microverse.py --selftest --seed 123 --steps 300` (failed: python not found); `python microverse.py --seed 123` (failed: python not found).
+- Outcome: Controls + HUD implemented; validation blocked by missing `python`.
+- If blocked: `python` executable missing; use `python3` or install python.
+- Plan update made: Yes
+- PRD update made: Yes

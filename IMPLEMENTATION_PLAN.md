@@ -11,53 +11,7 @@ Rules:
 
 ## Now (highest priority first)
 
-1) [x] TASK-PRD-07-A: Dashboard panel + population timeseries plot
-   - PRD: PRD-07
-   - What to change: Add a right-side dashboard panel in pygame and render a scrolling timeseries plot for plants/herbivores/predators.
-   - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
-   - Completion definition: The panel renders and the timeseries plot updates live during simulation.
-
-2) [x] TASK-PRD-07-B: Heatmap view + event highlight UI
-   - PRD: PRD-07
-   - What to change: Render a moisture or plant-biomass heatmap in the dashboard and show event highlight badges for extinction/crash/regime shift.
-   - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
-   - Completion definition: Heatmap updates live and at least one event highlight can trigger for some seeds.
-
-3) [x] TASK-PRD-08-A: Causal story text for detected events
-   - PRD: PRD-08
-   - What to change: Generate a short causal story when an event is detected and surface it in the HUD or log.
-   - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
-   - Completion definition: A deterministic causal story appears for detected events.
-
-4) [x] TASK-PRD-08-B: Counterfactual rerun comparison
-   - PRD: PRD-08
-   - What to change: Trigger a rerun with a single parameter perturbation (e.g., rainfall scale) and report whether the event persists.
-   - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
-   - Completion definition: Counterfactual run completes deterministically and reports persistence in UI/log.
-
-5) [x] TASK-PRD-09-A: Export still PNG
-   - PRD: PRD-09
-   - What to change: Add a keybinding to save the current frame as a high-res PNG (no external assets).
-   - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
-   - Completion definition: Keypress writes a PNG with a deterministic filename and expected content.
-
-6) [x] TASK-PRD-09-B1: Capture report-ready data (events + history)
-   - PRD: PRD-09
-   - What to change: Track an append-only event log (label, detail, tick/time, story) plus snapshot the existing population history so exports have stable inputs.
-   - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
-   - Completion definition: Export data structures are populated deterministically during windowed runs.
-
-7) [x] TASK-PRD-09-B2: Build HTML report writer with embedded plots
-   - PRD: PRD-09
-   - What to change: Add a report builder that renders plots (timeseries + heatmap) via matplotlib, embeds them as base64 in HTML, and includes seed/parameters + event log.
-   - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
-   - Completion definition: A standalone function writes an HTML report from captured data.
-
-8) [x] TASK-PRD-09-B3: Add HTML export keybinding + deterministic filename
-   - PRD: PRD-09
-   - What to change: Bind a keypress to invoke the report writer, pick a deterministic filename (seed + tick), and log the export path.
-   - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
-   - Completion definition: Keypress writes an HTML report with embedded plots and event summary.
+- None. All PRD items are complete; add new tasks here when scope expands.
 
 ---
 
@@ -116,3 +70,51 @@ Rules:
    - What to change: Add a deterministic flow/accumulation pass from height + rainfall, derive a river mask, and feed it into moisture updates or rendering.
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
    - Completion definition: A river/flow field is deterministic from seed and used in sim/rendering with stable selftest digest.
+
+10) [x] TASK-PRD-07-A: Dashboard panel + population timeseries plot
+   - PRD: PRD-07
+   - What to change: Add a right-side dashboard panel in pygame and render a scrolling timeseries plot for plants/herbivores/predators.
+   - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
+   - Completion definition: The panel renders and the timeseries plot updates live during simulation.
+
+11) [x] TASK-PRD-07-B: Heatmap view + event highlight UI
+   - PRD: PRD-07
+   - What to change: Render a moisture or plant-biomass heatmap in the dashboard and show event highlight badges for extinction/crash/regime shift.
+   - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
+   - Completion definition: Heatmap updates live and at least one event highlight can trigger for some seeds.
+
+12) [x] TASK-PRD-08-A: Causal story text for detected events
+   - PRD: PRD-08
+   - What to change: Generate a short causal story when an event is detected and surface it in the HUD or log.
+   - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
+   - Completion definition: A deterministic causal story appears for detected events.
+
+13) [x] TASK-PRD-08-B: Counterfactual rerun comparison
+   - PRD: PRD-08
+   - What to change: Trigger a rerun with a single parameter perturbation (e.g., rainfall scale) and report whether the event persists.
+   - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
+   - Completion definition: Counterfactual run completes deterministically and reports persistence in UI/log.
+
+14) [x] TASK-PRD-09-A: Export still PNG
+   - PRD: PRD-09
+   - What to change: Add a keybinding to save the current frame as a high-res PNG (no external assets).
+   - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
+   - Completion definition: Keypress writes a PNG with a deterministic filename and expected content.
+
+15) [x] TASK-PRD-09-B1: Capture report-ready data (events + history)
+   - PRD: PRD-09
+   - What to change: Track an append-only event log (label, detail, tick/time, story) plus snapshot the existing population history so exports have stable inputs.
+   - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
+   - Completion definition: Export data structures are populated deterministically during windowed runs.
+
+16) [x] TASK-PRD-09-B2: Build HTML report writer with embedded plots
+   - PRD: PRD-09
+   - What to change: Add a report builder that renders plots (timeseries + heatmap) via matplotlib, embeds them as base64 in HTML, and includes seed/parameters + event log.
+   - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
+   - Completion definition: A standalone function writes an HTML report from captured data.
+
+17) [x] TASK-PRD-09-B3: Add HTML export keybinding + deterministic filename
+   - PRD: PRD-09
+   - What to change: Bind a keypress to invoke the report writer, pick a deterministic filename (seed + tick), and log the export path.
+   - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
+   - Completion definition: Keypress writes an HTML report with embedded plots and event summary.

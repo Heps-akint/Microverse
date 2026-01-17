@@ -17,7 +17,7 @@ Rules:
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
    - Completion definition: `microverse.py` runs in selftest and exits 0 with a stable digest for seed 123.
 
-2) [ ] TASK-PRD-01-B: Windowed run path + deterministic world stub
+2) [x] TASK-PRD-01-B: Windowed run path + deterministic world stub
    - PRD: PRD-01
    - What to change: Add pygame window loop that renders a deterministic placeholder world from the seed; log the digest on startup.
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`; `python microverse.py --seed 123`

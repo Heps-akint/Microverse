@@ -32,3 +32,12 @@ Purpose: cross-session memory. DO NOT rewrite history. Append new entries only.
 - If blocked: `python` executable missing; use `python3` or install python.
 - Plan update made: Yes
 - PRD update made: No
+
+### 2026-01-17 — Iteration 004 — TASK-PRD-01-B
+- Goal: Add a windowed run path that renders a deterministic placeholder world and logs a startup digest.
+- What changed: Added pygame window mode that renders a deterministic terrain-like surface from the seed and prints `DIGEST=...` on startup; marked task complete in `IMPLEMENTATION_PLAN.md`; marked PRD-01 as passing.
+- Commands run + results: `python -m py_compile microverse.py` (failed: python not found); `python3 -m py_compile microverse.py` (ok); `python microverse.py --selftest --seed 123 --steps 300` (failed: python not found); `python3 microverse.py --selftest --seed 123 --steps 300` (DIGEST=f4324c57e63eef71e85e4fe3dfd9f1b691cf728a708321480e6f41b69fe8ea36); `python microverse.py --seed 123` (failed: python not found); `timeout 2 python3 microverse.py --seed 123` (DIGEST=ee020653e1523232f9afd054fbb2155aa4e2ee8d2c2ee7b3dcc9e1b1cc4f95c4; failed: pygame not installed).
+- Outcome: Windowed path works in code but runtime blocked by missing `python` alias and missing pygame.
+- If blocked: Install python on PATH or use `python3`, and install pygame for windowed mode.
+- Plan update made: Yes
+- PRD update made: Yes

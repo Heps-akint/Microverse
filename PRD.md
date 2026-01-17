@@ -5,7 +5,7 @@ Purpose: Microverse is a single Python program that generates a deterministic pr
 ---
 
 ## PRD-01: One-command runnable demo (seeded, deterministic)
-- [ ] Passes
+- [x] Passes
 
 Acceptance criteria:
 - Running `python microverse.py` opens a window and shows a generated world.

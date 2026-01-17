@@ -18,6 +18,12 @@ HERBIVORE_EAT_RATE = 0.22
 HERBIVORE_EAT_GAIN = 1.6
 HERBIVORE_METABOLISM = 0.05
 HERBIVORE_DENSITY = 128
+PREDATOR_START_ENERGY = 0.9
+PREDATOR_MAX_ENERGY = 2.2
+PREDATOR_REPRO_ENERGY = 1.6
+PREDATOR_EAT_GAIN = 1.4
+PREDATOR_METABOLISM = 0.07
+PREDATOR_DENSITY = 256
 
 
 class LcgRng:
@@ -51,6 +57,9 @@ class Simulation:
         self.herbivore_x: List[int] = []
         self.herbivore_y: List[int] = []
         self.herbivore_energy: List[float] = []
+        self.predator_x: List[int] = []
+        self.predator_y: List[int] = []
+        self.predator_energy: List[float] = []
         for idx in range(size):
             if self.water_mask[idx]:
                 self.moisture[idx] = 1.0
@@ -61,6 +70,7 @@ class Simulation:
                 plant = 0.5 * self.base_rainfall[idx] + 0.5 * self.base_temperature[idx]
                 self.plant_biomass[idx] = clamp_unit(plant)
         self._seed_herbivores()
+        self._seed_predators()
 
     def _seed_herbivores(self) -> None:
         land_indices = [idx for idx, water in enumerate(self.water_mask) if not water]
@@ -73,6 +83,18 @@ class Simulation:
             self.herbivore_y.append(idx // self.width)
             energy = HERBIVORE_START_ENERGY + 0.4 * self.plant_biomass[idx]
             self.herbivore_energy.append(clamp_range(energy, 0.2, HERBIVORE_MAX_ENERGY))
+
+    def _seed_predators(self) -> None:
+        land_indices = [idx for idx, water in enumerate(self.water_mask) if not water]
+        if not land_indices:
+            return
+        target = max(2, (self.width * self.height) // PREDATOR_DENSITY)
+        for _ in range(target):
+            idx = land_indices[self.agent_rng.next_u32() % len(land_indices)]
+            self.predator_x.append(idx % self.width)
+            self.predator_y.append(idx // self.width)
+            energy = PREDATOR_START_ENERGY + 0.2 * self.plant_biomass[idx]
+            self.predator_energy.append(clamp_range(energy, 0.3, PREDATOR_MAX_ENERGY))
 
     def step(self, dt: float) -> None:
         dt_scaled = int(dt * 1000)
@@ -109,6 +131,7 @@ class Simulation:
             self.moisture[idx] = clamp_unit(moisture)
         self.update_plants(dt)
         self.update_herbivores(dt)
+        self.update_predators(dt)
 
     def update_plants(self, dt: float) -> None:
         if dt <= 0.0:
@@ -180,6 +203,97 @@ class Simulation:
         self.herbivore_y = next_y
         self.herbivore_energy = next_energy
 
+    def update_predators(self, dt: float) -> None:
+        if dt <= 0.0 or not self.predator_x:
+            return
+        width = self.width
+        height = self.height
+        prey_alive = [True for _ in range(len(self.herbivore_x))]
+        prey_cells: List[List[int]] = [[] for _ in range(width * height)]
+        for idx, (hx, hy) in enumerate(zip(self.herbivore_x, self.herbivore_y)):
+            prey_cells[hy * width + hx].append(idx)
+        next_x: List[int] = []
+        next_y: List[int] = []
+        next_energy: List[float] = []
+        for idx in range(len(self.predator_x)):
+            x = self.predator_x[idx]
+            y = self.predator_y[idx]
+            energy = self.predator_energy[idx]
+            prey_positions: List[Tuple[int, int]] = []
+            plant_positions: List[Tuple[int, int]] = []
+            best_prey = 0
+            best_plant = -1.0
+            for dx, dy in ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)):
+                nx = x + dx
+                ny = y + dy
+                if nx < 0 or nx >= width or ny < 0 or ny >= height:
+                    continue
+                nidx = ny * width + nx
+                if self.water_mask[nidx]:
+                    continue
+                prey_count = len(prey_cells[nidx])
+                if prey_count:
+                    if prey_count > best_prey:
+                        best_prey = prey_count
+                        prey_positions = [(nx, ny)]
+                    elif prey_count == best_prey:
+                        prey_positions.append((nx, ny))
+                biomass = self.plant_biomass[nidx]
+                if biomass > best_plant + 1e-6:
+                    best_plant = biomass
+                    plant_positions = [(nx, ny)]
+                elif abs(biomass - best_plant) <= 1e-6:
+                    plant_positions.append((nx, ny))
+            if prey_positions:
+                choice = prey_positions[self.agent_rng.next_u32() % len(prey_positions)]
+                x, y = choice
+            elif plant_positions:
+                choice = plant_positions[self.agent_rng.next_u32() % len(plant_positions)]
+                x, y = choice
+            pos_idx = y * width + x
+            prey_list = prey_cells[pos_idx]
+            if prey_list:
+                prey_pick = self.agent_rng.next_u32() % len(prey_list)
+                prey_idx = prey_list.pop(prey_pick)
+                if prey_alive[prey_idx]:
+                    prey_alive[prey_idx] = False
+                    energy += PREDATOR_EAT_GAIN
+            energy -= PREDATOR_METABOLISM * dt
+            if energy <= 0.0:
+                continue
+            energy = min(energy, PREDATOR_MAX_ENERGY)
+            reproduced = energy >= PREDATOR_REPRO_ENERGY
+            if reproduced:
+                energy *= 0.5
+            next_x.append(x)
+            next_y.append(y)
+            next_energy.append(energy)
+            if reproduced:
+                child_x, child_y = self._pick_spawn(x, y)
+                next_x.append(child_x)
+                next_y.append(child_y)
+                next_energy.append(energy)
+        self.predator_x = next_x
+        self.predator_y = next_y
+        self.predator_energy = next_energy
+        if prey_alive:
+            survivors_x: List[int] = []
+            survivors_y: List[int] = []
+            survivors_energy: List[float] = []
+            for alive, hx, hy, he in zip(
+                prey_alive,
+                self.herbivore_x,
+                self.herbivore_y,
+                self.herbivore_energy,
+            ):
+                if alive:
+                    survivors_x.append(hx)
+                    survivors_y.append(hy)
+                    survivors_energy.append(he)
+            self.herbivore_x = survivors_x
+            self.herbivore_y = survivors_y
+            self.herbivore_energy = survivors_energy
+
     def _pick_spawn(self, x: int, y: int) -> Tuple[int, int]:
         candidates: List[Tuple[int, int]] = []
         for dx, dy in ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)):
@@ -212,6 +326,12 @@ class Simulation:
             h.update(x.to_bytes(2, "little"))
             h.update(y.to_bytes(2, "little"))
             scaled_energy = (energy / HERBIVORE_MAX_ENERGY) * 255.0
+            h.update(clamp_byte(scaled_energy).to_bytes(1, "little"))
+        h.update(len(self.predator_x).to_bytes(4, "little"))
+        for x, y, energy in zip(self.predator_x, self.predator_y, self.predator_energy):
+            h.update(x.to_bytes(2, "little"))
+            h.update(y.to_bytes(2, "little"))
+            scaled_energy = (energy / PREDATOR_MAX_ENERGY) * 255.0
             h.update(clamp_byte(scaled_energy).to_bytes(1, "little"))
         return h.hexdigest()
 
@@ -634,6 +754,8 @@ def run_window(sim: Simulation) -> int:
             f"dt: {sim_dt:.3f}s",
             f"FPS: {clock.get_fps():.1f}",
             f"Speed: {'paused' if paused else f'{time_scale:.0f}x'}",
+            f"Herbivores: {len(sim.herbivore_x)}",
+            f"Predators: {len(sim.predator_x)}",
         ]
         hud_surfaces = [font.render(line, True, (230, 230, 230)) for line in hud_lines]
         hud_width = max(surface.get_width() for surface in hud_surfaces)

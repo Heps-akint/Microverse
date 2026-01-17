@@ -55,7 +55,7 @@ Acceptance criteria:
 ---
 
 ## PRD-06: Agent-based ecology (plants → herbivores → predators)
-- [ ] Passes
+- [x] Passes
 
 Acceptance criteria:
 - Plants grow based on light + moisture.

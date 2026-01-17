@@ -53,7 +53,7 @@ Rules:
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
    - Completion definition: Herbivore counts change over time based on plant availability.
 
-8) [ ] TASK-PRD-06-B: Predators + population dynamics
+8) [x] TASK-PRD-06-B: Predators + population dynamics
    - PRD: PRD-06
    - What to change: Add predator agents that seek herbivores and integrate with population metrics.
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`

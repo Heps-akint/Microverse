@@ -86,3 +86,12 @@ Purpose: cross-session memory. DO NOT rewrite history. Append new entries only.
 - If blocked: `python` executable missing; use `python3` or install python.
 - Plan update made: Yes
 - PRD update made: No
+
+### 2026-01-17 — Iteration 010 — TASK-PRD-06-B
+- Goal: Add predator agents that hunt herbivores and integrate population metrics.
+- What changed: Added predator agents with energy/reproduction, hunting and herbivore removal; added predator state to the digest; showed herbivore/predator counts in the HUD; marked task complete in `IMPLEMENTATION_PLAN.md`; marked PRD-06 as passing.
+- Commands run + results: `python -m py_compile microverse.py` (failed: python not found); `python3 -m py_compile microverse.py` (ok); `python microverse.py --selftest --seed 123 --steps 300` (failed: python not found); `python3 microverse.py --selftest --seed 123 --steps 300` (DIGEST=fe06f627ca17137d1c13ab0e9fbfca0e12d8f2593f8954eb1461cc0eac3e22be).
+- Outcome: Predator/herbivore interactions are deterministic; selftest digest updated under python3.
+- If blocked: `python` executable missing; use `python3` or install python.
+- Plan update made: Yes
+- PRD update made: Yes

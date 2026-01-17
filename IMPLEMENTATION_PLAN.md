@@ -47,7 +47,7 @@ Rules:
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
    - Completion definition: Climate fields evolve deterministically from seed across steps.
 
-7) [ ] TASK-PRD-06-A: Plants + herbivores (energy budget)
+7) [x] TASK-PRD-06-A: Plants + herbivores (energy budget)
    - PRD: PRD-06
    - What to change: Implement plant growth and herbivore agents with energy gain/loss, reproduction, and death.
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`

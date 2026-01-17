@@ -77,3 +77,12 @@ Purpose: cross-session memory. DO NOT rewrite history. Append new entries only.
 - If blocked: `python` executable missing; use `python3` or install python.
 - Plan update made: Yes
 - PRD update made: No
+
+### 2026-01-17 — Iteration 009 — TASK-PRD-06-A
+- Goal: Implement plants + herbivores with a deterministic energy budget.
+- What changed: Added plant growth/decay updates, deterministic herbivore seeding and agent updates (movement, feeding, reproduction, death), and included herbivore state in the digest.
+- Commands run + results: `python -m py_compile microverse.py` (failed: python not found); `python3 -m py_compile microverse.py` (ok); `python microverse.py --selftest --seed 123 --steps 300` (failed: python not found); `python3 microverse.py --selftest --seed 123 --steps 300` (DIGEST=439f1b3fec3c92c216a2cfdfb27434c427f8a12a4489b4b7d27a3fd7da90d651).
+- Outcome: Plants and herbivores evolve deterministically; selftest digest updated under python3.
+- If blocked: `python` executable missing; use `python3` or install python.
+- Plan update made: Yes
+- PRD update made: No

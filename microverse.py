@@ -8,6 +8,16 @@ from typing import List, Optional, Tuple
 MASK32 = 0xFFFFFFFF
 DEFAULT_SCALE = 8
 WATER_LEVEL = 90
+PLANT_GROWTH_RATE = 0.12
+PLANT_DECAY_BASE = 0.02
+PLANT_DECAY_DRY = 0.08
+HERBIVORE_START_ENERGY = 0.6
+HERBIVORE_MAX_ENERGY = 1.6
+HERBIVORE_REPRO_ENERGY = 1.2
+HERBIVORE_EAT_RATE = 0.22
+HERBIVORE_EAT_GAIN = 1.6
+HERBIVORE_METABOLISM = 0.05
+HERBIVORE_DENSITY = 128
 
 
 class LcgRng:
@@ -37,6 +47,10 @@ class Simulation:
         self.water_mask = [height < WATER_LEVEL for height in heights]
         self.moisture = [0.0 for _ in range(size)]
         self.plant_biomass = [0.0 for _ in range(size)]
+        self.agent_rng = LcgRng(seed ^ 0x5F356495)
+        self.herbivore_x: List[int] = []
+        self.herbivore_y: List[int] = []
+        self.herbivore_energy: List[float] = []
         for idx in range(size):
             if self.water_mask[idx]:
                 self.moisture[idx] = 1.0
@@ -46,6 +60,19 @@ class Simulation:
                 self.moisture[idx] = clamp_unit(base_moisture)
                 plant = 0.5 * self.base_rainfall[idx] + 0.5 * self.base_temperature[idx]
                 self.plant_biomass[idx] = clamp_unit(plant)
+        self._seed_herbivores()
+
+    def _seed_herbivores(self) -> None:
+        land_indices = [idx for idx, water in enumerate(self.water_mask) if not water]
+        if not land_indices:
+            return
+        target = max(4, (self.width * self.height) // HERBIVORE_DENSITY)
+        for _ in range(target):
+            idx = land_indices[self.agent_rng.next_u32() % len(land_indices)]
+            self.herbivore_x.append(idx % self.width)
+            self.herbivore_y.append(idx // self.width)
+            energy = HERBIVORE_START_ENERGY + 0.4 * self.plant_biomass[idx]
+            self.herbivore_energy.append(clamp_range(energy, 0.2, HERBIVORE_MAX_ENERGY))
 
     def step(self, dt: float) -> None:
         dt_scaled = int(dt * 1000)
@@ -80,6 +107,93 @@ class Simulation:
             if self.water_mask[idx]:
                 moisture = max(0.85, moisture)
             self.moisture[idx] = clamp_unit(moisture)
+        self.update_plants(dt)
+        self.update_herbivores(dt)
+
+    def update_plants(self, dt: float) -> None:
+        if dt <= 0.0:
+            return
+        for idx in range(len(self.plant_biomass)):
+            if self.water_mask[idx]:
+                self.plant_biomass[idx] = 0.0
+                continue
+            moisture = self.moisture[idx]
+            light = clamp_unit(0.3 + 0.7 * self.temperature[idx])
+            growth = light * moisture * PLANT_GROWTH_RATE * dt
+            decay = (PLANT_DECAY_BASE + PLANT_DECAY_DRY * (1.0 - moisture)) * dt
+            biomass = self.plant_biomass[idx] + growth - decay
+            self.plant_biomass[idx] = clamp_unit(biomass)
+
+    def update_herbivores(self, dt: float) -> None:
+        if dt <= 0.0 or not self.herbivore_x:
+            return
+        width = self.width
+        height = self.height
+        next_x: List[int] = []
+        next_y: List[int] = []
+        next_energy: List[float] = []
+        for idx in range(len(self.herbivore_x)):
+            x = self.herbivore_x[idx]
+            y = self.herbivore_y[idx]
+            energy = self.herbivore_energy[idx]
+            best_biomass = -1.0
+            best_positions: List[Tuple[int, int]] = []
+            for dx, dy in ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)):
+                nx = x + dx
+                ny = y + dy
+                if nx < 0 or nx >= width or ny < 0 or ny >= height:
+                    continue
+                nidx = ny * width + nx
+                if self.water_mask[nidx]:
+                    continue
+                biomass = self.plant_biomass[nidx]
+                if biomass > best_biomass + 1e-6:
+                    best_biomass = biomass
+                    best_positions = [(nx, ny)]
+                elif abs(biomass - best_biomass) <= 1e-6:
+                    best_positions.append((nx, ny))
+            if best_positions:
+                choice = best_positions[self.agent_rng.next_u32() % len(best_positions)]
+                x, y = choice
+            pos_idx = y * width + x
+            available = self.plant_biomass[pos_idx]
+            eat = min(available, HERBIVORE_EAT_RATE * dt)
+            if eat > 0.0:
+                self.plant_biomass[pos_idx] = clamp_unit(available - eat)
+            energy += eat * HERBIVORE_EAT_GAIN
+            energy -= HERBIVORE_METABOLISM * dt
+            if energy <= 0.0:
+                continue
+            energy = min(energy, HERBIVORE_MAX_ENERGY)
+            reproduced = energy >= HERBIVORE_REPRO_ENERGY
+            if reproduced:
+                energy *= 0.5
+            next_x.append(x)
+            next_y.append(y)
+            next_energy.append(energy)
+            if reproduced:
+                child_x, child_y = self._pick_spawn(x, y)
+                next_x.append(child_x)
+                next_y.append(child_y)
+                next_energy.append(energy)
+        self.herbivore_x = next_x
+        self.herbivore_y = next_y
+        self.herbivore_energy = next_energy
+
+    def _pick_spawn(self, x: int, y: int) -> Tuple[int, int]:
+        candidates: List[Tuple[int, int]] = []
+        for dx, dy in ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)):
+            nx = x + dx
+            ny = y + dy
+            if nx < 0 or nx >= self.width or ny < 0 or ny >= self.height:
+                continue
+            idx = ny * self.width + nx
+            if self.water_mask[idx]:
+                continue
+            candidates.append((nx, ny))
+        if not candidates:
+            return x, y
+        return candidates[self.agent_rng.next_u32() % len(candidates)]
 
     def run_fixed(self, steps: int, dt: float = 1.0) -> None:
         for _ in range(steps):
@@ -93,6 +207,12 @@ class Simulation:
         for field in (self.temperature, self.rainfall, self.moisture, self.plant_biomass):
             for value in field:
                 h.update(clamp_byte(value * 255.0).to_bytes(1, "little"))
+        h.update(len(self.herbivore_x).to_bytes(4, "little"))
+        for x, y, energy in zip(self.herbivore_x, self.herbivore_y, self.herbivore_energy):
+            h.update(x.to_bytes(2, "little"))
+            h.update(y.to_bytes(2, "little"))
+            scaled_energy = (energy / HERBIVORE_MAX_ENERGY) * 255.0
+            h.update(clamp_byte(scaled_energy).to_bytes(1, "little"))
         return h.hexdigest()
 
 

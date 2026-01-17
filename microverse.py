@@ -747,6 +747,69 @@ def mean(values: List[float]) -> float:
     return sum(values) / len(values)
 
 
+def wrap_text(font, text: str, max_width: int) -> List[str]:
+    words = text.split()
+    if not words:
+        return []
+    lines: List[str] = []
+    current = words[0]
+    for word in words[1:]:
+        trial = f"{current} {word}"
+        if font.size(trial)[0] <= max_width:
+            current = trial
+        else:
+            lines.append(current)
+            current = word
+    if current:
+        lines.append(current)
+    return lines
+
+
+def build_causal_story(
+    label: str,
+    targets: List[str],
+    plant_mean: float,
+    moisture_mean: float,
+    herb_count: int,
+    pred_count: int,
+    herb_history: List[float],
+    plant_delta: Optional[float] = None,
+) -> str:
+    signals: List[str] = []
+    if moisture_mean < 0.35:
+        signals.append("dry conditions")
+    elif moisture_mean > 0.75:
+        signals.append("wet conditions")
+    if label != "Regime shift":
+        if plant_mean < 0.25:
+            signals.append("low plants")
+        elif plant_mean > 0.75:
+            signals.append("lush plants")
+    if "Herbivores" in targets and herb_count > 0:
+        pred_ratio = pred_count / max(1, herb_count)
+        if pred_ratio > 0.6:
+            signals.append("high predator pressure")
+    if "Predators" in targets:
+        max_herb = max(herb_history) if herb_history else 0.0
+        if herb_count <= max(2.0, max_herb * 0.15):
+            signals.append("prey scarcity")
+    if not signals:
+        signals.append("baseline conditions")
+    if len(signals) > 2:
+        signals = signals[:2]
+    cause = signals[0] if len(signals) == 1 else f"{signals[0]} and {signals[1]}"
+    if label == "Regime shift":
+        verb = "shifted"
+        if plant_delta is not None:
+            direction = "upward" if plant_delta > 0.0 else "downward"
+            verb = f"shifted {direction}"
+        subject = "Plant biomass"
+    else:
+        subject = " and ".join(targets) if targets else label
+        verb = "went extinct" if label == "Extinction" else "crashed"
+    return f"{subject} {verb} amid {cause}."
+
+
 def draw_series(pygame, surface, rect, series: List[float], color: Tuple[int, int, int], scale: float) -> None:
     if len(series) < 2 or rect.width < 2 or rect.height < 2:
         return
@@ -810,6 +873,7 @@ def draw_dashboard_panel(
     heatmap_height: int,
     heatmap_water_mask: Optional[List[bool]],
     event_rows: List[Tuple[str, str, bool]],
+    story_text: str,
 ) -> None:
     panel_bg = (18, 18, 22)
     panel_border = (60, 60, 70)
@@ -912,6 +976,17 @@ def draw_dashboard_panel(
         pygame.draw.rect(screen, panel_border, badge_rect, 1)
         screen.blit(badge, (badge_rect.left + 6, badge_rect.top + 3))
         cursor_y = badge_rect.bottom + 6
+    if story_text and cursor_y < panel_rect.bottom - padding:
+        subtitle = font.render("Story", True, subtitle_color)
+        screen.blit(subtitle, (cursor_x, cursor_y))
+        cursor_y += subtitle.get_height() + 6
+        max_width = panel_rect.width - padding * 2
+        for line in wrap_text(font, story_text, max_width):
+            if cursor_y >= panel_rect.bottom - padding:
+                break
+            line_surface = font.render(line, True, text_color)
+            screen.blit(line_surface, (cursor_x, cursor_y))
+            cursor_y += line_surface.get_height() + 2
 
 
 def run_window(sim: Simulation) -> int:
@@ -951,26 +1026,48 @@ def run_window(sim: Simulation) -> int:
     pred_history: List[float] = []
     event_age = {"extinction": 0, "crash": 0, "regime": 0}
     event_detail = {"extinction": "", "crash": "", "regime": ""}
+    story_text = ""
+    story_age = 0
     crash_window = min(CRASH_WINDOW, history_len)
     regime_window = min(REGIME_WINDOW, max(1, history_len // 2))
     panel_rect = pygame.Rect(view_size[0], 0, panel_width, view_size[1])
 
     def update_events() -> None:
+        nonlocal story_age, story_text
         for key in event_age:
             if event_age[key] > 0:
                 event_age[key] -= 1
                 if event_age[key] == 0:
                     event_detail[key] = ""
+        if story_age > 0:
+            story_age -= 1
+            if story_age == 0:
+                story_text = ""
         extinction_labels = []
         herb_count = int(round(herb_history[-1])) if herb_history else 0
         pred_count = int(round(pred_history[-1])) if pred_history else 0
+        plant_mean = plant_history[-1] if plant_history else 0.0
+        moisture_mean = mean(sim.moisture)
         if herb_history and herb_count == 0:
             extinction_labels.append("Herbivores")
         if pred_history and pred_count == 0:
             extinction_labels.append("Predators")
         if extinction_labels:
+            detail = ", ".join(extinction_labels)
+            if event_age["extinction"] == 0 or event_detail["extinction"] != detail:
+                story_text = build_causal_story(
+                    "Extinction",
+                    extinction_labels,
+                    plant_mean,
+                    moisture_mean,
+                    herb_count,
+                    pred_count,
+                    herb_history,
+                )
+                story_age = EVENT_HOLD_STEPS
+                print(f"EVENT: Extinction ({detail}) STORY: {story_text}")
             event_age["extinction"] = EVENT_HOLD_STEPS
-            event_detail["extinction"] = ", ".join(extinction_labels)
+            event_detail["extinction"] = detail
         crash_labels = []
         if crash_window >= 2 and len(herb_history) >= crash_window:
             window = herb_history[-crash_window:]
@@ -983,16 +1080,43 @@ def run_window(sim: Simulation) -> int:
             if peak > 0.0 and pred_history[-1] <= peak * (1.0 - CRASH_DROP):
                 crash_labels.append("Predators")
         if crash_labels:
+            detail = ", ".join(crash_labels)
+            if event_age["crash"] == 0 or event_detail["crash"] != detail:
+                story_text = build_causal_story(
+                    "Crash",
+                    crash_labels,
+                    plant_mean,
+                    moisture_mean,
+                    herb_count,
+                    pred_count,
+                    herb_history,
+                )
+                story_age = EVENT_HOLD_STEPS
+                print(f"EVENT: Crash ({detail}) STORY: {story_text}")
             event_age["crash"] = EVENT_HOLD_STEPS
-            event_detail["crash"] = ", ".join(crash_labels)
+            event_detail["crash"] = detail
         if len(plant_history) >= regime_window * 2:
             recent = mean(plant_history[-regime_window:])
             prior = mean(plant_history[-2 * regime_window : -regime_window])
             delta = recent - prior
             if abs(delta) >= REGIME_SHIFT_DELTA:
                 trend = "Up" if delta > 0.0 else "Down"
+                detail = f"{trend} {abs(delta):.2f}"
+                if event_age["regime"] == 0 or event_detail["regime"] != detail:
+                    story_text = build_causal_story(
+                        "Regime shift",
+                        [],
+                        plant_mean,
+                        moisture_mean,
+                        herb_count,
+                        pred_count,
+                        herb_history,
+                        plant_delta=delta,
+                    )
+                    story_age = EVENT_HOLD_STEPS
+                    print(f"EVENT: Regime shift ({detail}) STORY: {story_text}")
                 event_age["regime"] = EVENT_HOLD_STEPS
-                event_detail["regime"] = f"{trend} {abs(delta):.2f}"
+                event_detail["regime"] = detail
 
     def sample_history() -> None:
         plant_mean = 0.0
@@ -1097,6 +1221,7 @@ def run_window(sim: Simulation) -> int:
             sim.height,
             sim.water_mask,
             event_rows,
+            story_text,
         )
         hud_lines = [
             f"Seed: {sim.seed}",

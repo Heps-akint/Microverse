@@ -23,7 +23,7 @@ Rules:
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
    - Completion definition: Heatmap updates live and at least one event highlight can trigger for some seeds.
 
-3) [ ] TASK-PRD-08-A: Causal story text for detected events
+3) [x] TASK-PRD-08-A: Causal story text for detected events
    - PRD: PRD-08
    - What to change: Generate a short causal story when an event is detected and surface it in the HUD or log.
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`

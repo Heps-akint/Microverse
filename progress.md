@@ -131,3 +131,12 @@ Purpose: cross-session memory. DO NOT rewrite history. Append new entries only.
 - If blocked: `python` executable missing; use `python3` or install python.
 - Plan update made: Yes
 - PRD update made: Yes
+
+### 2026-01-17 — Iteration 015 — TASK-PRD-08-A
+- Goal: Generate a causal story when events are detected and surface it in the UI/log.
+- What changed: Added heuristic causal story generation for extinction/crash/regime shift events, logged stories on detection, and displayed the latest story in the dashboard panel.
+- Commands run + results: `python -m py_compile microverse.py` (failed: python not found); `python3 -m py_compile microverse.py` (ok); `python microverse.py --selftest --seed 123 --steps 300` (failed: python not found); `python3 microverse.py --selftest --seed 123 --steps 300` (DIGEST=10abd142f6d87941117fb93aef871a698471754ae1fa4ecf25168da00d1f288d).
+- Outcome: Deterministic causal stories appear when events trigger and are visible in the dashboard; logs include event stories.
+- If blocked: `python` executable missing; use `python3` or install python.
+- Plan update made: Yes
+- PRD update made: No

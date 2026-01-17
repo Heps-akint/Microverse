@@ -19,9 +19,9 @@ Keep this file short. No status updates here.
   - Optional speed: `python -m pip install numba`
 
 - Dev run:
-  - `python microverse.py`
-  - Repro run: `python microverse.py --seed 123`
-  - Headless regression: `python microverse.py --selftest --seed 123 --steps 300`
+  - `python3 microverse.py`
+  - Repro run: `python3 microverse.py --seed 123`
+  - Headless regression: `python3 microverse.py --selftest --seed 123 --steps 300`
 
 ## Validation (the backpressure)
 Run these after every change. Prefer fast + deterministic.

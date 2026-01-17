@@ -65,7 +65,7 @@ Acceptance criteria:
 ---
 
 ## PRD-07: Live dashboard inside the app
-- [ ] Passes
+- [x] Passes
 
 Acceptance criteria:
 - Side panel shows live plots (population timeseries at minimum).

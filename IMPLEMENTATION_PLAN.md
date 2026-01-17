@@ -17,7 +17,7 @@ Rules:
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
    - Completion definition: The panel renders and the timeseries plot updates live during simulation.
 
-2) [ ] TASK-PRD-07-B: Heatmap view + event highlight UI
+2) [x] TASK-PRD-07-B: Heatmap view + event highlight UI
    - PRD: PRD-07
    - What to change: Render a moisture or plant-biomass heatmap in the dashboard and show event highlight badges for extinction/crash/regime shift.
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`

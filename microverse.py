@@ -30,6 +30,11 @@ RIVER_MOISTURE_GAIN = 0.06
 RIVER_MOISTURE_FLOOR = 0.35
 RIVER_MOISTURE_RANGE = 0.45
 RIVER_COLOR = (30, 100, 160)
+CRASH_WINDOW = 50
+CRASH_DROP = 0.5
+REGIME_WINDOW = 80
+REGIME_SHIFT_DELTA = 0.12
+EVENT_HOLD_STEPS = 180
 
 
 class LcgRng:
@@ -736,6 +741,12 @@ def update_history(history: List[float], value: float, max_len: int) -> None:
         del history[: len(history) - max_len]
 
 
+def mean(values: List[float]) -> float:
+    if not values:
+        return 0.0
+    return sum(values) / len(values)
+
+
 def draw_series(pygame, surface, rect, series: List[float], color: Tuple[int, int, int], scale: float) -> None:
     if len(series) < 2 or rect.width < 2 or rect.height < 2:
         return
@@ -752,6 +763,40 @@ def draw_series(pygame, surface, rect, series: List[float], color: Tuple[int, in
         pygame.draw.lines(surface, color, False, points, 2)
 
 
+def heatmap_color(value: float, water: bool) -> Tuple[int, int, int]:
+    if water:
+        return (18, 30, 46)
+    value = clamp_unit(value)
+    low = (16, 24, 16)
+    mid = (40, 110, 60)
+    high = (170, 220, 120)
+    if value < 0.5:
+        return blend_color(low, mid, smoothstep(value * 2.0))
+    return blend_color(mid, high, smoothstep((value - 0.5) * 2.0))
+
+
+def draw_heatmap(
+    pygame,
+    surface,
+    rect,
+    values: List[float],
+    width: int,
+    height: int,
+    water_mask: Optional[List[bool]],
+) -> None:
+    if rect.width < 2 or rect.height < 2 or width <= 0 or height <= 0:
+        return
+    heat_surface = pygame.Surface((width, height))
+    for y in range(height):
+        row = y * width
+        for x in range(width):
+            idx = row + x
+            water = water_mask[idx] if water_mask else False
+            heat_surface.set_at((x, y), heatmap_color(values[idx], water))
+    scaled = pygame.transform.scale(heat_surface, (rect.width, rect.height))
+    surface.blit(scaled, rect)
+
+
 def draw_dashboard_panel(
     pygame,
     screen,
@@ -760,6 +805,11 @@ def draw_dashboard_panel(
     plant_history: List[float],
     herb_history: List[float],
     pred_history: List[float],
+    heatmap_values: List[float],
+    heatmap_width: int,
+    heatmap_height: int,
+    heatmap_water_mask: Optional[List[bool]],
+    event_rows: List[Tuple[str, str, bool]],
 ) -> None:
     panel_bg = (18, 18, 22)
     panel_border = (60, 60, 70)
@@ -812,6 +862,56 @@ def draw_dashboard_panel(
         label = font.render(text, True, color)
         screen.blit(label, (cursor_x, cursor_y))
         cursor_y += label.get_height() + 4
+    cursor_y += 4
+    subtitle = font.render("Heatmap (Plants)", True, subtitle_color)
+    screen.blit(subtitle, (cursor_x, cursor_y))
+    cursor_y += subtitle.get_height() + 6
+    heatmap_height_px = min(panel_rect.width - padding * 2, max(60, int(panel_rect.height * 0.25)))
+    heatmap_rect = pygame.Rect(
+        cursor_x,
+        cursor_y,
+        panel_rect.width - padding * 2,
+        heatmap_height_px,
+    )
+    pygame.draw.rect(screen, (26, 26, 32), heatmap_rect)
+    inner_heatmap = heatmap_rect.inflate(-4, -4)
+    draw_heatmap(
+        pygame,
+        screen,
+        inner_heatmap,
+        heatmap_values,
+        heatmap_width,
+        heatmap_height,
+        heatmap_water_mask,
+    )
+    cursor_y = heatmap_rect.bottom + 8
+    subtitle = font.render("Events", True, subtitle_color)
+    screen.blit(subtitle, (cursor_x, cursor_y))
+    cursor_y += subtitle.get_height() + 6
+    event_colors = {
+        "Extinction": (190, 70, 70),
+        "Crash": (210, 150, 70),
+        "Regime shift": (80, 170, 190),
+    }
+    for label, detail, active in event_rows:
+        if cursor_y >= panel_rect.bottom - padding:
+            break
+        badge_text = label if not detail else f"{label}: {detail}"
+        badge_color = event_colors.get(label, panel_border)
+        if not active:
+            badge_color = (45, 45, 52)
+        text_tint = (240, 240, 240) if active else (150, 150, 160)
+        badge = font.render(badge_text, True, text_tint)
+        badge_rect = pygame.Rect(
+            cursor_x,
+            cursor_y,
+            panel_rect.width - padding * 2,
+            badge.get_height() + 6,
+        )
+        pygame.draw.rect(screen, badge_color, badge_rect)
+        pygame.draw.rect(screen, panel_border, badge_rect, 1)
+        screen.blit(badge, (badge_rect.left + 6, badge_rect.top + 3))
+        cursor_y = badge_rect.bottom + 6
 
 
 def run_window(sim: Simulation) -> int:
@@ -849,7 +949,50 @@ def run_window(sim: Simulation) -> int:
     plant_history: List[float] = []
     herb_history: List[float] = []
     pred_history: List[float] = []
+    event_age = {"extinction": 0, "crash": 0, "regime": 0}
+    event_detail = {"extinction": "", "crash": "", "regime": ""}
+    crash_window = min(CRASH_WINDOW, history_len)
+    regime_window = min(REGIME_WINDOW, max(1, history_len // 2))
     panel_rect = pygame.Rect(view_size[0], 0, panel_width, view_size[1])
+
+    def update_events() -> None:
+        for key in event_age:
+            if event_age[key] > 0:
+                event_age[key] -= 1
+                if event_age[key] == 0:
+                    event_detail[key] = ""
+        extinction_labels = []
+        herb_count = int(round(herb_history[-1])) if herb_history else 0
+        pred_count = int(round(pred_history[-1])) if pred_history else 0
+        if herb_history and herb_count == 0:
+            extinction_labels.append("Herbivores")
+        if pred_history and pred_count == 0:
+            extinction_labels.append("Predators")
+        if extinction_labels:
+            event_age["extinction"] = EVENT_HOLD_STEPS
+            event_detail["extinction"] = ", ".join(extinction_labels)
+        crash_labels = []
+        if crash_window >= 2 and len(herb_history) >= crash_window:
+            window = herb_history[-crash_window:]
+            peak = max(window)
+            if peak > 0.0 and herb_history[-1] <= peak * (1.0 - CRASH_DROP):
+                crash_labels.append("Herbivores")
+        if crash_window >= 2 and len(pred_history) >= crash_window:
+            window = pred_history[-crash_window:]
+            peak = max(window)
+            if peak > 0.0 and pred_history[-1] <= peak * (1.0 - CRASH_DROP):
+                crash_labels.append("Predators")
+        if crash_labels:
+            event_age["crash"] = EVENT_HOLD_STEPS
+            event_detail["crash"] = ", ".join(crash_labels)
+        if len(plant_history) >= regime_window * 2:
+            recent = mean(plant_history[-regime_window:])
+            prior = mean(plant_history[-2 * regime_window : -regime_window])
+            delta = recent - prior
+            if abs(delta) >= REGIME_SHIFT_DELTA:
+                trend = "Up" if delta > 0.0 else "Down"
+                event_age["regime"] = EVENT_HOLD_STEPS
+                event_detail["regime"] = f"{trend} {abs(delta):.2f}"
 
     def sample_history() -> None:
         plant_mean = 0.0
@@ -858,6 +1001,7 @@ def run_window(sim: Simulation) -> int:
         update_history(plant_history, plant_mean, history_len)
         update_history(herb_history, float(len(sim.herbivore_x)), history_len)
         update_history(pred_history, float(len(sim.predator_x)), history_len)
+        update_events()
 
     sample_history()
     running = True
@@ -935,6 +1079,11 @@ def run_window(sim: Simulation) -> int:
         view_rect = pygame.Rect(int(camera_x), int(camera_y), view_size[0], view_size[1])
         screen.fill(sky_color)
         screen.blit(world_surface, (0, 0), view_rect)
+        event_rows = [
+            ("Extinction", event_detail["extinction"], event_age["extinction"] > 0),
+            ("Crash", event_detail["crash"], event_age["crash"] > 0),
+            ("Regime shift", event_detail["regime"], event_age["regime"] > 0),
+        ]
         draw_dashboard_panel(
             pygame,
             screen,
@@ -943,6 +1092,11 @@ def run_window(sim: Simulation) -> int:
             plant_history,
             herb_history,
             pred_history,
+            sim.plant_biomass,
+            sim.width,
+            sim.height,
+            sim.water_mask,
+            event_rows,
         )
         hud_lines = [
             f"Seed: {sim.seed}",

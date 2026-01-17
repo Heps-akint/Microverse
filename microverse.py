@@ -26,7 +26,26 @@ class Simulation:
         self.seed = seed
         self.rng = LcgRng(seed)
         self.tick = 0
-        self.cells = [self.rng.next_u32() for _ in range(width * height)]
+        size = width * height
+        self.cells = [self.rng.next_u32() for _ in range(size)]
+        heights, temps, rains = build_fields(width, height, seed)
+        self.heights = heights
+        self.base_temperature = [temp / 255.0 for temp in temps]
+        self.base_rainfall = [rain / 255.0 for rain in rains]
+        self.temperature = list(self.base_temperature)
+        self.rainfall = list(self.base_rainfall)
+        self.water_mask = [height < WATER_LEVEL for height in heights]
+        self.moisture = [0.0 for _ in range(size)]
+        self.plant_biomass = [0.0 for _ in range(size)]
+        for idx in range(size):
+            if self.water_mask[idx]:
+                self.moisture[idx] = 1.0
+                self.plant_biomass[idx] = 0.0
+            else:
+                base_moisture = 0.6 * self.base_rainfall[idx] + 0.2 * self.base_temperature[idx]
+                self.moisture[idx] = clamp_unit(base_moisture)
+                plant = 0.5 * self.base_rainfall[idx] + 0.5 * self.base_temperature[idx]
+                self.plant_biomass[idx] = clamp_unit(plant)
 
     def step(self, dt: float) -> None:
         dt_scaled = int(dt * 1000)
@@ -42,6 +61,25 @@ class Simulation:
             mix ^= ((mix << 13) & MASK32) ^ (mix >> 7)
             next_cells[idx] = mix
         self.cells = next_cells
+        if dt <= 0.0:
+            return
+        sim_time = self.tick / 1000.0
+        season_phase = (sim_time / 120.0) * 2.0 * math.pi
+        temp_shift = 0.08 * math.sin(season_phase)
+        rain_factor = 0.8 + 0.2 * math.sin(season_phase + 1.3)
+        for idx in range(len(self.moisture)):
+            temp = clamp_unit(self.base_temperature[idx] + temp_shift)
+            rain = clamp_unit(self.base_rainfall[idx] * rain_factor)
+            self.temperature[idx] = temp
+            self.rainfall[idx] = rain
+            moisture = self.moisture[idx]
+            rain_add = rain * 0.1 * dt
+            evaporation = (0.01 + 0.05 * temp) * dt
+            plant_use = self.plant_biomass[idx] * 0.04 * dt
+            moisture = moisture + rain_add - evaporation - plant_use
+            if self.water_mask[idx]:
+                moisture = max(0.85, moisture)
+            self.moisture[idx] = clamp_unit(moisture)
 
     def run_fixed(self, steps: int, dt: float = 1.0) -> None:
         for _ in range(steps):
@@ -52,6 +90,9 @@ class Simulation:
         h.update(self.tick.to_bytes(4, "little"))
         for val in self.cells:
             h.update(val.to_bytes(4, "little"))
+        for field in (self.temperature, self.rainfall, self.moisture, self.plant_biomass):
+            for value in field:
+                h.update(clamp_byte(value * 255.0).to_bytes(1, "little"))
         return h.hexdigest()
 
 

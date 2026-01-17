@@ -41,7 +41,7 @@ Rules:
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
    - Completion definition: Lighting visibly shifts with time and water reflects brighter than land.
 
-6) [ ] TASK-PRD-05-A: Climate fields + deterministic update loop
+6) [x] TASK-PRD-05-A: Climate fields + deterministic update loop
    - PRD: PRD-05
    - What to change: Add moisture/temperature/rainfall fields and update rules (rainfall, evaporation, plant consumption).
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`

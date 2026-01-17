@@ -185,3 +185,12 @@ Purpose: cross-session memory. DO NOT rewrite history. Append new entries only.
 - If blocked: `python` executable missing; use `python3` or install python.
 - Plan update made: Yes
 - PRD update made: No
+
+### 2026-01-17 — Iteration 021 — TASK-PRD-09-B3
+- Goal: Add HTML export keybinding + deterministic filename.
+- What changed: Added a deterministic report filename helper, bound `H` to export the HTML report, and logged the export path with a friendly error if matplotlib is missing.
+- Commands run + results: `python -m py_compile microverse.py` (failed: python not found); `python microverse.py --selftest --seed 123 --steps 300` (failed: python not found); `python3 -m py_compile microverse.py` (ok); `python3 microverse.py --selftest --seed 123 --steps 300` (DIGEST=10abd142f6d87941117fb93aef871a698471754ae1fa4ecf25168da00d1f288d).
+- Outcome: HTML report exports now use deterministic filenames via a keypress and log their output path.
+- If blocked: `python` executable missing; use `python3` or install python.
+- Plan update made: Yes
+- PRD update made: Yes

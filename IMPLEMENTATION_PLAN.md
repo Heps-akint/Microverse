@@ -53,7 +53,7 @@ Rules:
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`
    - Completion definition: A standalone function writes an HTML report from captured data.
 
-8) [ ] TASK-PRD-09-B3: Add HTML export keybinding + deterministic filename
+8) [x] TASK-PRD-09-B3: Add HTML export keybinding + deterministic filename
    - PRD: PRD-09
    - What to change: Bind a keypress to invoke the report writer, pick a deterministic filename (seed + tick), and log the export path.
    - Required validation: `python -m py_compile microverse.py`; `python microverse.py --selftest --seed 123 --steps 300`

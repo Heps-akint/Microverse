@@ -84,7 +84,7 @@ Acceptance criteria:
 ---
 
 ## PRD-09: Export still + HTML report (no external assets)
-- [ ] Passes
+- [x] Passes
 
 Acceptance criteria:
 - Keypress exports a high-res still PNG.

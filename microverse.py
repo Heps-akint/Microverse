@@ -764,6 +764,10 @@ def screenshot_filename(seed: int, tick: int) -> str:
     return f"microverse_seed{seed}_tick{tick:010d}.png"
 
 
+def report_filename(seed: int, tick: int) -> str:
+    return f"microverse_report_seed{seed}_tick{tick:010d}.html"
+
+
 def _figure_to_base64(plt, fig) -> str:
     buffer = io.BytesIO()
     fig.savefig(buffer, format="png", dpi=120, bbox_inches="tight")
@@ -1322,6 +1326,7 @@ def run_window(sim: Simulation) -> int:
     last_sim_dt = 1.0 / 60.0
     panel_rect = pygame.Rect(view_size[0], 0, panel_width, view_size[1])
     pending_screenshot: Optional[str] = None
+    pending_report: Optional[str] = None
     event_log: List[Dict[str, object]] = []
     report_snapshot: Dict[str, object] = {
         "seed": sim.seed,
@@ -1491,6 +1496,8 @@ def run_window(sim: Simulation) -> int:
                     paused = False
                 elif event.key == pygame.K_p:
                     pending_screenshot = screenshot_filename(sim.seed, sim.tick)
+                elif event.key == pygame.K_h:
+                    pending_report = report_filename(sim.seed, sim.tick)
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button in (2, 3):
                 dragging = True
                 last_mouse = event.pos
@@ -1596,6 +1603,15 @@ def run_window(sim: Simulation) -> int:
             pygame.image.save(export_surface, pending_screenshot)
             print(f"EXPORT: saved still to {pending_screenshot}")
             pending_screenshot = None
+        if pending_report:
+            update_report_snapshot()
+            try:
+                write_html_report(report_snapshot, pending_report)
+            except SystemExit as exc:
+                print(str(exc))
+            else:
+                print(f"EXPORT: saved report to {pending_report}")
+            pending_report = None
         pygame.display.flip()
     pygame.quit()
     return 0

@@ -24,6 +24,12 @@ PREDATOR_REPRO_ENERGY = 1.6
 PREDATOR_EAT_GAIN = 1.4
 PREDATOR_METABOLISM = 0.07
 PREDATOR_DENSITY = 256
+RIVER_PERCENTILE = 0.92
+RIVER_FLOW_BASE = 0.02
+RIVER_MOISTURE_GAIN = 0.06
+RIVER_MOISTURE_FLOOR = 0.35
+RIVER_MOISTURE_RANGE = 0.45
+RIVER_COLOR = (30, 100, 160)
 
 
 class LcgRng:
@@ -48,6 +54,9 @@ class Simulation:
         self.heights = heights
         self.base_temperature = [temp / 255.0 for temp in temps]
         self.base_rainfall = [rain / 255.0 for rain in rains]
+        self.flow_accum, self.river_mask, self.river_strength = build_flow_fields(
+            heights, self.base_rainfall, width, height
+        )
         self.temperature = list(self.base_temperature)
         self.rainfall = list(self.base_rainfall)
         self.water_mask = [height < WATER_LEVEL for height in heights]
@@ -66,6 +75,11 @@ class Simulation:
                 self.plant_biomass[idx] = 0.0
             else:
                 base_moisture = 0.6 * self.base_rainfall[idx] + 0.2 * self.base_temperature[idx]
+                river_strength = self.river_strength[idx]
+                if river_strength > 0.0:
+                    base_moisture = max(
+                        base_moisture, RIVER_MOISTURE_FLOOR + RIVER_MOISTURE_RANGE * river_strength
+                    )
                 self.moisture[idx] = clamp_unit(base_moisture)
                 plant = 0.5 * self.base_rainfall[idx] + 0.5 * self.base_temperature[idx]
                 self.plant_biomass[idx] = clamp_unit(plant)
@@ -125,7 +139,11 @@ class Simulation:
             rain_add = rain * 0.1 * dt
             evaporation = (0.01 + 0.05 * temp) * dt
             plant_use = self.plant_biomass[idx] * 0.04 * dt
-            moisture = moisture + rain_add - evaporation - plant_use
+            river_strength = self.river_strength[idx]
+            river_add = river_strength * RIVER_MOISTURE_GAIN * dt
+            moisture = moisture + rain_add - evaporation - plant_use + river_add
+            if river_strength > 0.0:
+                moisture = max(moisture, RIVER_MOISTURE_FLOOR + RIVER_MOISTURE_RANGE * river_strength)
             if self.water_mask[idx]:
                 moisture = max(0.85, moisture)
             self.moisture[idx] = clamp_unit(moisture)
@@ -318,7 +336,13 @@ class Simulation:
         h.update(self.tick.to_bytes(4, "little"))
         for val in self.cells:
             h.update(val.to_bytes(4, "little"))
-        for field in (self.temperature, self.rainfall, self.moisture, self.plant_biomass):
+        for field in (
+            self.temperature,
+            self.rainfall,
+            self.moisture,
+            self.plant_biomass,
+            self.river_strength,
+        ):
             for value in field:
                 h.update(clamp_byte(value * 255.0).to_bytes(1, "little"))
         h.update(len(self.herbivore_x).to_bytes(4, "little"))
@@ -366,6 +390,11 @@ def lerp(a: float, b: float, t: float) -> float:
 
 def lerp_color(a: Tuple[int, int, int], b: Tuple[int, int, int], t: float) -> Tuple[float, float, float]:
     return (lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t))
+
+
+def blend_color(a: Tuple[int, int, int], b: Tuple[int, int, int], t: float) -> Tuple[int, int, int]:
+    mixed = lerp_color(a, b, t)
+    return (clamp_byte(mixed[0]), clamp_byte(mixed[1]), clamp_byte(mixed[2]))
 
 
 def smoothstep(t: float) -> float:
@@ -454,6 +483,55 @@ def build_fields(width: int, height: int, seed: int) -> Tuple[List[int], List[in
             temps[idx] = clamp_byte(temp_val * 255.0)
             rains[idx] = clamp_byte(rain_val * 255.0)
     return heights, temps, rains
+
+
+def build_flow_fields(
+    heights: List[int], base_rainfall: List[float], width: int, height: int
+) -> Tuple[List[float], List[bool], List[float]]:
+    size = width * height
+    flow_to = list(range(size))
+    for y in range(height):
+        row = y * width
+        for x in range(width):
+            idx = row + x
+            best_idx = idx
+            best_height = heights[idx]
+            for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                nx = x + dx
+                ny = y + dy
+                if nx < 0 or nx >= width or ny < 0 or ny >= height:
+                    continue
+                nidx = ny * width + nx
+                nheight = heights[nidx]
+                if nheight < best_height:
+                    best_height = nheight
+                    best_idx = nidx
+            flow_to[idx] = best_idx
+    accum = [base_rainfall[idx] + RIVER_FLOW_BASE for idx in range(size)]
+    order = sorted(range(size), key=lambda i: heights[i], reverse=True)
+    for idx in order:
+        dest = flow_to[idx]
+        if dest != idx:
+            accum[dest] += accum[idx]
+    river_mask = [False for _ in range(size)]
+    river_strength = [0.0 for _ in range(size)]
+    land_indices = [idx for idx, height in enumerate(heights) if height >= WATER_LEVEL]
+    if not land_indices:
+        return accum, river_mask, river_strength
+    land_accum = sorted(accum[idx] for idx in land_indices)
+    cutoff_index = int(len(land_accum) * RIVER_PERCENTILE)
+    if cutoff_index >= len(land_accum):
+        cutoff_index = len(land_accum) - 1
+    cutoff = land_accum[cutoff_index]
+    max_accum = land_accum[-1]
+    if max_accum <= cutoff + 1e-6:
+        return accum, river_mask, river_strength
+    span = max_accum - cutoff
+    for idx in land_indices:
+        if accum[idx] >= cutoff:
+            river_mask[idx] = True
+            river_strength[idx] = clamp_unit((accum[idx] - cutoff) / span)
+    return accum, river_mask, river_strength
 
 
 def normalize_vec3(x: float, y: float, z: float) -> Tuple[float, float, float]:
@@ -608,11 +686,19 @@ def build_world_data(
     sim: Simulation,
 ) -> Tuple[List[Tuple[int, int, int]], List[bool], List[Tuple[float, float, float]]]:
     heights, temps, rains = build_fields(sim.width, sim.height, sim.seed)
+    base_rainfall = [rain / 255.0 for rain in rains]
+    _, river_mask, river_strength = build_flow_fields(
+        heights, base_rainfall, sim.width, sim.height
+    )
     base_colors: List[Tuple[int, int, int]] = []
     water_mask: List[bool] = []
     for idx, height in enumerate(heights):
-        base_colors.append(color_for(height, temps[idx], rains[idx]))
-        water_mask.append(height < WATER_LEVEL)
+        color = color_for(height, temps[idx], rains[idx])
+        if river_mask[idx]:
+            tint = 0.35 + 0.35 * river_strength[idx]
+            color = blend_color(color, RIVER_COLOR, clamp_unit(tint))
+        base_colors.append(color)
+        water_mask.append(height < WATER_LEVEL or river_mask[idx])
     normals = build_normals(heights, sim.width, sim.height)
     return base_colors, water_mask, normals
 

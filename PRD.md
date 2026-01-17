@@ -45,7 +45,7 @@ Acceptance criteria:
 ---
 
 ## PRD-05: Physics-lite climate loop (deterministic)
-- [ ] Passes
+- [x] Passes
 
 Acceptance criteria:
 - Rainfall/evaporation/soil moisture fields evolve over time.

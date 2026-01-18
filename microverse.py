@@ -5,12 +5,14 @@ import hashlib
 import html
 import io
 import math
+import struct
 from typing import Dict, List, Optional, Tuple
 
 
 MASK32 = 0xFFFFFFFF
 DEFAULT_SCALE = 8
 EXPORT_SCALE = 2
+VIDEO_FPS = 30
 WATER_LEVEL = 90
 PLANT_GROWTH_RATE = 0.12
 PLANT_DECAY_BASE = 0.02
@@ -927,6 +929,187 @@ def report_filename(seed: int, tick: int) -> str:
     return f"microverse_report_seed{seed}_tick{tick:010d}.html"
 
 
+def video_filename(seed: int, tick: int) -> str:
+    return f"microverse_video_seed{seed}_tick{tick:010d}.avi"
+
+
+def _avi_row_stride(width: int) -> int:
+    return (width * 3 + 3) & ~3
+
+
+def _pack_avi_frame(raw: bytes, width: int, height: int) -> bytes:
+    row_bytes = width * 3
+    padded_row_bytes = _avi_row_stride(width)
+    if padded_row_bytes == row_bytes:
+        return raw
+    padded = bytearray(padded_row_bytes * height)
+    src = memoryview(raw)
+    dest = memoryview(padded)
+    for y in range(height):
+        start = y * row_bytes
+        dest_start = y * padded_row_bytes
+        dest[dest_start : dest_start + row_bytes] = src[start : start + row_bytes]
+    return bytes(padded)
+
+
+class AviWriter:
+    def __init__(self, path: str, width: int, height: int, fps: int = VIDEO_FPS) -> None:
+        self.path = path
+        self.width = width
+        self.height = height
+        self.fps = max(1, int(fps))
+        self.row_stride = _avi_row_stride(width)
+        self.frame_size = self.row_stride * height
+        self.frame_offsets: List[int] = []
+        self.frame_sizes: List[int] = []
+        self.frame_count = 0
+        self.handle = open(path, "wb")
+        self._write_header()
+
+    def _patch_at(self, pos: int, data: bytes) -> None:
+        handle = self.handle
+        current = handle.tell()
+        handle.seek(pos)
+        handle.write(data)
+        handle.seek(current)
+
+    def _patch_size(self, pos: int, size: int) -> None:
+        self._patch_at(pos, struct.pack("<I", size))
+
+    def _write_header(self) -> None:
+        handle = self.handle
+        # Write AVI headers with placeholder sizes; patched on close.
+        handle.write(b"RIFF")
+        self.riff_size_pos = handle.tell()
+        handle.write(struct.pack("<I", 0))
+        handle.write(b"AVI ")
+        handle.write(b"LIST")
+        self.hdrl_size_pos = handle.tell()
+        handle.write(struct.pack("<I", 0))
+        handle.write(b"hdrl")
+        handle.write(b"avih")
+        handle.write(struct.pack("<I", 56))
+        self.avih_pos = handle.tell()
+        handle.write(b"\x00" * 56)
+        handle.write(b"LIST")
+        self.strl_size_pos = handle.tell()
+        handle.write(struct.pack("<I", 0))
+        handle.write(b"strl")
+        handle.write(b"strh")
+        handle.write(struct.pack("<I", 56))
+        self.strh_pos = handle.tell()
+        handle.write(b"\x00" * 56)
+        handle.write(b"strf")
+        handle.write(struct.pack("<I", 40))
+        self.strf_pos = handle.tell()
+        handle.write(b"\x00" * 40)
+        strl_end = handle.tell()
+        self._patch_size(self.strl_size_pos, strl_end - (self.strl_size_pos + 4))
+        hdrl_end = handle.tell()
+        self._patch_size(self.hdrl_size_pos, hdrl_end - (self.hdrl_size_pos + 4))
+        handle.write(b"LIST")
+        self.movi_size_pos = handle.tell()
+        handle.write(struct.pack("<I", 0))
+        handle.write(b"movi")
+        self.movi_list_start = handle.tell()
+
+    def _write_chunk(self, chunk_id: bytes, data: bytes) -> None:
+        handle = self.handle
+        offset = handle.tell() - self.movi_list_start
+        handle.write(chunk_id)
+        handle.write(struct.pack("<I", len(data)))
+        handle.write(data)
+        if len(data) % 2:
+            handle.write(b"\x00")
+        self.frame_offsets.append(offset)
+        self.frame_sizes.append(len(data))
+        self.frame_count += 1
+
+    def _patch_headers(self) -> None:
+        micro_sec = int(1_000_000 / self.fps)
+        max_bytes = self.frame_size * self.fps
+        avih = struct.pack(
+            "<IIIIIIIIIIIIII",
+            micro_sec,
+            max_bytes,
+            0,
+            0x10,
+            self.frame_count,
+            0,
+            1,
+            self.frame_size,
+            self.width,
+            self.height,
+            0,
+            0,
+            0,
+            0,
+        )
+        self._patch_at(self.avih_pos, avih)
+        strh = struct.pack(
+            "<4s4sIHHIIIIIIIIhhhh",
+            b"vids",
+            b"DIB ",
+            0,
+            0,
+            0,
+            0,
+            1,
+            self.fps,
+            0,
+            self.frame_count,
+            self.frame_size,
+            0xFFFFFFFF,
+            0,
+            0,
+            0,
+            self.width,
+            self.height,
+        )
+        self._patch_at(self.strh_pos, strh)
+        strf = struct.pack(
+            "<IiiHHIIiiII",
+            40,
+            self.width,
+            -self.height,
+            1,
+            24,
+            0,
+            self.frame_size,
+            0,
+            0,
+            0,
+            0,
+        )
+        self._patch_at(self.strf_pos, strf)
+
+    def add_frame(self, pygame, surface) -> None:
+        if surface.get_width() != self.width or surface.get_height() != self.height:
+            raise ValueError("Video frame size changed during capture.")
+        raw = pygame.image.tostring(surface, "BGR")
+        frame_data = _pack_avi_frame(raw, self.width, self.height)
+        if len(frame_data) != self.frame_size:
+            raise ValueError("Video frame size mismatch.")
+        self._write_chunk(b"00db", frame_data)
+
+    def close(self) -> None:
+        handle = self.handle
+        if handle is None:
+            return
+        idx_start = handle.tell()
+        handle.write(b"idx1")
+        handle.write(struct.pack("<I", len(self.frame_offsets) * 16))
+        for offset, size in zip(self.frame_offsets, self.frame_sizes):
+            handle.write(b"00db")
+            handle.write(struct.pack("<I", 0x10))
+            handle.write(struct.pack("<I", offset))
+            handle.write(struct.pack("<I", size))
+        movi_end = idx_start
+        self._patch_size(self.movi_size_pos, movi_end - (self.movi_size_pos + 4))
+        self._patch_size(self.riff_size_pos, handle.tell() - 8)
+        self._patch_headers()
+        handle.close()
+        self.handle = None
 def _figure_to_base64(plt, fig) -> str:
     buffer = io.BytesIO()
     fig.savefig(buffer, format="png", dpi=120, bbox_inches="tight")
@@ -1503,6 +1686,8 @@ def run_window(sim: Simulation) -> int:
     view_area = pygame.Rect(0, 0, view_size[0], view_size[1])
     pending_screenshot: Optional[str] = None
     pending_report: Optional[str] = None
+    video_writer: Optional[AviWriter] = None
+    video_path: Optional[str] = None
     event_log: List[Dict[str, object]] = []
     report_snapshot: Dict[str, object] = {
         "seed": sim.seed,
@@ -1674,6 +1859,28 @@ def run_window(sim: Simulation) -> int:
                     pending_screenshot = screenshot_filename(sim.seed, sim.tick)
                 elif event.key == pygame.K_h:
                     pending_report = report_filename(sim.seed, sim.tick)
+                elif event.key == pygame.K_k:
+                    if video_writer is None:
+                        video_path = video_filename(sim.seed, sim.tick)
+                        try:
+                            video_writer = AviWriter(
+                                video_path,
+                                screen.get_width(),
+                                screen.get_height(),
+                                VIDEO_FPS,
+                            )
+                        except OSError as exc:
+                            print(f"EXPORT: video capture failed to start ({exc})")
+                            video_writer = None
+                            video_path = None
+                        else:
+                            print(f"EXPORT: video capture started at {video_path}")
+                    else:
+                        video_writer.close()
+                        if video_path:
+                            print(f"EXPORT: saved video to {video_path}")
+                        video_writer = None
+                        video_path = None
                 elif event.key == pygame.K_v:
                     view_mode_3d = not view_mode_3d
                 elif event.key == pygame.K_c:
@@ -1928,6 +2135,7 @@ def run_window(sim: Simulation) -> int:
             f"FPS: {clock.get_fps():.1f}",
             f"Speed: {'paused' if paused else f'{time_scale:.0f}x'}",
             f"View: {'3D' if view_mode_3d else '2D'}",
+            f"Video: {'REC' if video_writer else 'off'}",
             f"Sun offset: {law_sun_offset:+.1f} deg",
             f"Rain mult: {law_rain_multiplier:.2f}x",
             f"Temp offset: {law_temp_offset:+.2f}",
@@ -1961,6 +2169,14 @@ def run_window(sim: Simulation) -> int:
         for surface in hud_surfaces:
             screen.blit(surface, (hud_rect.left + padding, y))
             y += surface.get_height() + 2
+        if video_writer:
+            try:
+                video_writer.add_frame(pygame, screen)
+            except Exception as exc:
+                print(f"EXPORT: video capture aborted ({exc})")
+                video_writer.close()
+                video_writer = None
+                video_path = None
         if pending_screenshot:
             export_surface = screen
             if EXPORT_SCALE != 1:
@@ -1982,6 +2198,10 @@ def run_window(sim: Simulation) -> int:
                 print(f"EXPORT: saved report to {pending_report}")
             pending_report = None
         pygame.display.flip()
+    if video_writer:
+        video_writer.close()
+        if video_path:
+            print(f"EXPORT: saved video to {video_path}")
     pygame.quit()
     return 0
 

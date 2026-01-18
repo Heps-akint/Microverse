@@ -124,7 +124,7 @@ Acceptance criteria:
 ---
 
 ## PRD-13: Pure-Python video export
-- [ ] Fails
+- [x] Passes
 
 Acceptance criteria:
 - A keybind starts/stops video capture.

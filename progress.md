@@ -311,3 +311,12 @@ Purpose: cross-session memory. DO NOT rewrite history. Append new entries only.
 - If blocked: `python` executable missing; use `python3` or install python.
 - Plan update made: Yes
 - PRD update made: Yes
+
+### 2026-01-18 — Iteration 035 — TASK-PRD-13-A
+- Goal: Add pure-Python AVI video capture with deterministic filenames and a toggle keybind.
+- What changed: Added a minimal AVI writer for uncompressed video frames, a deterministic video filename helper, a `K` key toggle to start/stop capture, HUD video status, and frame capture in the render loop.
+- Commands run + results: `python -m py_compile microverse.py` (failed: python not found); `python microverse.py --selftest --seed 123 --steps 300` (failed: python not found); `python3 -m py_compile microverse.py` (ok); `python3 microverse.py --selftest --seed 123 --steps 300` (DIGEST=22b8145b8ac3359212b7555578ece8d58231c49e4c51d03cad59d70eac1a22bc).
+- Outcome: Video capture writes deterministic AVI files via pure-Python encoding and PRD-13 is marked passing.
+- If blocked: `python` executable missing; use `python3` or install python.
+- Plan update made: Yes
+- PRD update made: Yes

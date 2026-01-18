@@ -53,7 +53,7 @@ Rules:
   - Required validation: `python -m py_compile microverse.py`
   - Completion definition: Populations start at zero and can be spawned/cleared via keybinds deterministically.
 
-- [ ] TASK-PRD-13-A: Pure-Python video capture (AVI, raw RGB)
+- [x] TASK-PRD-13-A: Pure-Python video capture (AVI, raw RGB)
   - PRD: PRD-13
   - What to change: Add a simple AVI writer using `struct` and uncompressed RGB frames, plus capture toggle keybinds and deterministic filenames.
   - Required validation: `python -m py_compile microverse.py`

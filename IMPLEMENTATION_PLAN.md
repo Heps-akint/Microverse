@@ -35,11 +35,17 @@ Rules:
   - Required validation: `python -m py_compile microverse.py`
   - Completion definition: Users can switch quality presets and the renderer scales resolution when FPS drops.
 
-- [ ] TASK-PRD-11-A: Runtime “laws” controls and HUD display
+- [ ] TASK-PRD-11-A: Runtime “laws” state + keybinds + HUD display
   - PRD: PRD-11
-  - What to change: Add runtime modifiers for sun angle offset, rainfall multiplier, temperature offset, and gravity; wire keybinds and HUD display; apply modifiers in lighting, climate updates, and agent movement cost.
+  - What to change: Add runtime modifiers for sun angle offset, rainfall multiplier, temperature offset, and gravity; wire keybinds and HUD display without altering simulation behavior yet.
   - Required validation: `python -m py_compile microverse.py`
-  - Completion definition: Runtime keys adjust parameters, the HUD reflects current values, and the simulation responds deterministically.
+  - Completion definition: Runtime keys adjust parameters and the HUD reflects current values deterministically.
+
+- [ ] TASK-PRD-11-B: Apply runtime “laws” to sim + lighting
+  - PRD: PRD-11
+  - What to change: Apply the law modifiers in lighting (sun angle offset), climate updates (rainfall multiplier, temperature offset), and agent movement cost/energy (gravity) deterministically.
+  - Required validation: `python -m py_compile microverse.py`
+  - Completion definition: Simulation responds immediately and deterministically to runtime law changes.
 
 - [ ] TASK-PRD-12-A: Empty-start ecology + interactive spawning/reset
   - PRD: PRD-12

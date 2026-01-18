@@ -29,7 +29,7 @@ Rules:
   - Required validation: `python -m py_compile microverse.py`
   - Completion definition: Distant terrain fades with fog and water surfaces are visually distinct in 3D mode.
 
-- [ ] TASK-PRD-10-D: Render-quality presets + dynamic resolution scaling
+- [x] TASK-PRD-10-D: Render-quality presets + dynamic resolution scaling
   - PRD: PRD-10
   - What to change: Add low/med/high quality presets (step size, max distance, vertical resolution) and a dynamic resolution scaler targeting 30 FPS.
   - Required validation: `python -m py_compile microverse.py`

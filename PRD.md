@@ -93,7 +93,7 @@ Acceptance criteria:
 ---
 
 ## PRD-10: Full 3D renderer (CPU) with sky, fog, and water cues
-- [ ] Fails
+- [x] Passes
 
 Acceptance criteria:
 - 3D view is rendered with camera position, yaw, pitch, and altitude.

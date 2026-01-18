@@ -41,7 +41,17 @@ REGIME_SHIFT_DELTA = 0.12
 EVENT_HOLD_STEPS = 180
 COUNTERFACTUAL_RAINFALL_SCALE = 0.85
 VIEW3D_FOV_DEG = 70.0
-VIEW3D_STEP = 0.6
+VIEW3D_QUALITY_PRESETS = [
+    {"name": "Low", "step": 1.2, "max_dist_scale": 0.75, "vertical_scale": 0.6},
+    {"name": "Med", "step": 0.8, "max_dist_scale": 1.0, "vertical_scale": 0.85},
+    {"name": "High", "step": 0.5, "max_dist_scale": 1.2, "vertical_scale": 1.0},
+]
+VIEW3D_TARGET_FPS = 30.0
+VIEW3D_RES_SCALE_MIN = 0.5
+VIEW3D_RES_SCALE_MAX = 1.0
+VIEW3D_RES_SCALE_STEP = 0.05
+VIEW3D_RES_UPDATE_SECS = 0.5
+VIEW3D_RES_HYSTERESIS = 4.0
 
 
 class LcgRng:
@@ -714,10 +724,14 @@ def render_heightmap_3d(
     camera_pitch: float,
     camera_alt: float,
     scale: int,
+    view_width: int,
+    view_height: int,
+    step: float,
+    max_distance: float,
 ) -> None:
-    view_width = view_rect.width
-    view_height = view_rect.height
-    if view_width < 2 or view_height < 2:
+    render_width = view_rect.width
+    render_height = view_rect.height
+    if render_width < 2 or render_height < 2:
         return
     cam_px = camera_x + view_width * 0.5
     cam_py = camera_y + view_height * 0.5
@@ -727,17 +741,15 @@ def render_heightmap_3d(
     fov = math.radians(VIEW3D_FOV_DEG)
     height_scale = 60.0
     camera_height = height_scale * 0.6 + camera_alt * 0.25
-    proj_scale = view_height * 0.35
-    pitch_shift = (camera_pitch / 45.0) * (view_height * 0.35)
-    horizon = view_rect.top + view_height * 0.5 + pitch_shift
-    horizon = clamp_range(horizon, view_rect.top - view_height, view_rect.bottom + view_height)
-    max_distance = max(world_width, world_height) * 1.2
-    step = VIEW3D_STEP
+    proj_scale = render_height * 0.35
+    pitch_shift = (camera_pitch / 45.0) * (render_height * 0.35)
+    horizon = view_rect.top + render_height * 0.5 + pitch_shift
+    horizon = clamp_range(horizon, view_rect.top - render_height, view_rect.bottom + render_height)
     fog_start = max_distance * 0.2
     fog_end = max_distance * 0.85
     fog_span = max(1.0, fog_end - fog_start)
-    for col in range(view_width):
-        offset = (col / max(1, view_width - 1)) - 0.5
+    for col in range(render_width):
+        offset = (col / max(1, render_width - 1)) - 0.5
         angle = yaw + offset * fov
         dir_x = math.cos(angle)
         dir_y = math.sin(angle)
@@ -1419,6 +1431,11 @@ def run_window(sim: Simulation) -> int:
     last_mouse = (0, 0)
     paused = False
     view_mode_3d = False
+    quality_index = 1
+    dynamic_scale = 1.0
+    dynamic_timer = 0.0
+    render_surface = None
+    scaled_surface = None
     time_scale = 1.0
     sim_time = 0.0
     sim_steps = 0
@@ -1613,6 +1630,8 @@ def run_window(sim: Simulation) -> int:
                     pending_report = report_filename(sim.seed, sim.tick)
                 elif event.key == pygame.K_v:
                     view_mode_3d = not view_mode_3d
+                elif event.key == pygame.K_c:
+                    quality_index = (quality_index + 1) % len(VIEW3D_QUALITY_PRESETS)
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button in (2, 3):
                 dragging = True
                 last_mouse = event.pos
@@ -1665,6 +1684,24 @@ def run_window(sim: Simulation) -> int:
             sim_steps += 1
             last_sim_dt = sim_dt
             sample_history()
+        if view_mode_3d:
+            dynamic_timer += frame_dt
+            if dynamic_timer >= VIEW3D_RES_UPDATE_SECS:
+                fps = clock.get_fps()
+                if fps > 1.0:
+                    if fps < VIEW3D_TARGET_FPS - VIEW3D_RES_HYSTERESIS:
+                        dynamic_scale = max(
+                            VIEW3D_RES_SCALE_MIN,
+                            dynamic_scale - VIEW3D_RES_SCALE_STEP,
+                        )
+                    elif fps > VIEW3D_TARGET_FPS + VIEW3D_RES_HYSTERESIS:
+                        dynamic_scale = min(
+                            VIEW3D_RES_SCALE_MAX,
+                            dynamic_scale + VIEW3D_RES_SCALE_STEP,
+                        )
+                dynamic_timer = 0.0
+        else:
+            dynamic_timer = 0.0
         sun_dir, sun_height, sky_color = sun_state(sim_time)
         render_lit_surface(
             base_surface,
@@ -1682,26 +1719,70 @@ def run_window(sim: Simulation) -> int:
         view_rect = pygame.Rect(int(camera_x), int(camera_y), view_size[0], view_size[1])
         screen.fill(sky_color)
         if view_mode_3d:
-            render_heightmap_3d(
-                pygame,
-                screen,
-                view_area,
-                sim.heights,
-                base_colors,
-                normals,
-                water_mask,
-                sun_dir,
-                sun_height,
-                sky_color,
-                sim.width,
-                sim.height,
-                camera_x,
-                camera_y,
-                camera_yaw,
-                camera_pitch,
-                camera_alt,
-                scale,
-            )
+            quality = VIEW3D_QUALITY_PRESETS[quality_index]
+            quality_step = float(quality["step"])
+            quality_vertical = float(quality["vertical_scale"])
+            max_distance = max(sim.width, sim.height) * float(quality["max_dist_scale"])
+            render_width = max(2, int(view_area.width * dynamic_scale))
+            render_height = max(2, int(view_area.height * quality_vertical * dynamic_scale))
+            if render_width == view_area.width and render_height == view_area.height:
+                render_heightmap_3d(
+                    pygame,
+                    screen,
+                    view_area,
+                    sim.heights,
+                    base_colors,
+                    normals,
+                    water_mask,
+                    sun_dir,
+                    sun_height,
+                    sky_color,
+                    sim.width,
+                    sim.height,
+                    camera_x,
+                    camera_y,
+                    camera_yaw,
+                    camera_pitch,
+                    camera_alt,
+                    scale,
+                    view_area.width,
+                    view_area.height,
+                    quality_step,
+                    max_distance,
+                )
+            else:
+                if render_surface is None or render_surface.get_size() != (render_width, render_height):
+                    render_surface = pygame.Surface((render_width, render_height))
+                render_surface.fill(sky_color)
+                render_rect = render_surface.get_rect()
+                render_heightmap_3d(
+                    pygame,
+                    render_surface,
+                    render_rect,
+                    sim.heights,
+                    base_colors,
+                    normals,
+                    water_mask,
+                    sun_dir,
+                    sun_height,
+                    sky_color,
+                    sim.width,
+                    sim.height,
+                    camera_x,
+                    camera_y,
+                    camera_yaw,
+                    camera_pitch,
+                    camera_alt,
+                    scale,
+                    view_area.width,
+                    view_area.height,
+                    quality_step,
+                    max_distance,
+                )
+                if scaled_surface is None:
+                    scaled_surface = pygame.Surface(view_area.size)
+                pygame.transform.scale(render_surface, view_area.size, scaled_surface)
+                screen.blit(scaled_surface, view_area.topleft)
         else:
             screen.blit(world_surface, (0, 0), view_rect)
         event_rows = [
@@ -1724,6 +1805,9 @@ def run_window(sim: Simulation) -> int:
             event_rows,
             story_text,
         )
+        quality = VIEW3D_QUALITY_PRESETS[quality_index]
+        quality_name = str(quality["name"])
+        quality_vertical = float(quality["vertical_scale"])
         hud_lines = [
             f"Seed: {sim.seed}",
             f"Sim time: {sim_time:.2f}s",
@@ -1731,12 +1815,24 @@ def run_window(sim: Simulation) -> int:
             f"FPS: {clock.get_fps():.1f}",
             f"Speed: {'paused' if paused else f'{time_scale:.0f}x'}",
             f"View: {'3D' if view_mode_3d else '2D'}",
-            f"Yaw: {camera_yaw:.1f} deg",
-            f"Pitch: {camera_pitch:.1f} deg",
-            f"Alt: {camera_alt:.1f}",
-            f"Herbivores: {len(sim.herbivore_x)}",
-            f"Predators: {len(sim.predator_x)}",
         ]
+        if view_mode_3d:
+            hud_lines.extend(
+                [
+                    f"Quality: {quality_name}",
+                    f"3D scale: {dynamic_scale:.2f}x",
+                    f"3D v-res: {quality_vertical:.2f}x",
+                ]
+            )
+        hud_lines.extend(
+            [
+                f"Yaw: {camera_yaw:.1f} deg",
+                f"Pitch: {camera_pitch:.1f} deg",
+                f"Alt: {camera_alt:.1f}",
+                f"Herbivores: {len(sim.herbivore_x)}",
+                f"Predators: {len(sim.predator_x)}",
+            ]
+        )
         hud_surfaces = [font.render(line, True, (230, 230, 230)) for line in hud_lines]
         hud_width = max(surface.get_width() for surface in hud_surfaces)
         hud_height = sum(surface.get_height() for surface in hud_surfaces) + 2 * (len(hud_surfaces) - 1)

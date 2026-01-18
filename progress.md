@@ -266,3 +266,12 @@ Purpose: cross-session memory. DO NOT rewrite history. Append new entries only.
 - If blocked: `python` executable missing; use `python3` or install python.
 - Plan update made: Yes
 - PRD update made: No
+
+### 2026-01-18 — Iteration 030 — TASK-PRD-10-D
+- Goal: Add 3D render-quality presets and dynamic resolution scaling to target 30 FPS.
+- What changed: Added low/med/high quality presets (step size, max distance, vertical resolution), a `C` key toggle, HUD indicators, and dynamic resolution scaling based on FPS for 3D rendering.
+- Commands run + results: `python -m py_compile microverse.py` (failed: python not found); `python3 -m py_compile microverse.py` (ok); `python microverse.py --selftest --seed 123 --steps 300` (failed: python not found); `python3 microverse.py --selftest --seed 123 --steps 300` (DIGEST=10abd142f6d87941117fb93aef871a698471754ae1fa4ecf25168da00d1f288d).
+- Outcome: 3D mode now supports quality presets with dynamic resolution scaling; PRD-10 marked passing.
+- If blocked: `python` executable missing; use `python3` or install python.
+- Plan update made: Yes
+- PRD update made: Yes

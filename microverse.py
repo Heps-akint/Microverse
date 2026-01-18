@@ -40,6 +40,8 @@ REGIME_WINDOW = 80
 REGIME_SHIFT_DELTA = 0.12
 EVENT_HOLD_STEPS = 180
 COUNTERFACTUAL_RAINFALL_SCALE = 0.85
+VIEW3D_FOV_DEG = 70.0
+VIEW3D_STEP = 0.6
 
 
 class LcgRng:
@@ -693,6 +695,98 @@ def render_lit_surface(
     surface.unlock()
 
 
+def render_heightmap_3d(
+    pygame,
+    screen,
+    view_rect,
+    heights: List[int],
+    base_colors: List[Tuple[int, int, int]],
+    normals: List[Tuple[float, float, float]],
+    water_mask: List[bool],
+    sun_dir: Tuple[float, float, float],
+    sun_height: float,
+    sky_color: Tuple[int, int, int],
+    world_width: int,
+    world_height: int,
+    camera_x: float,
+    camera_y: float,
+    camera_yaw: float,
+    camera_pitch: float,
+    camera_alt: float,
+    scale: int,
+) -> None:
+    view_width = view_rect.width
+    view_height = view_rect.height
+    if view_width < 2 or view_height < 2:
+        return
+    cam_px = camera_x + view_width * 0.5
+    cam_py = camera_y + view_height * 0.5
+    cam_x = cam_px / max(1, scale)
+    cam_y = cam_py / max(1, scale)
+    yaw = math.radians(camera_yaw)
+    fov = math.radians(VIEW3D_FOV_DEG)
+    height_scale = 60.0
+    camera_height = height_scale * 0.6 + camera_alt * 0.25
+    proj_scale = view_height * 0.35
+    pitch_shift = (camera_pitch / 45.0) * (view_height * 0.35)
+    horizon = view_rect.top + view_height * 0.5 + pitch_shift
+    horizon = clamp_range(horizon, view_rect.top - view_height, view_rect.bottom + view_height)
+    max_distance = max(world_width, world_height) * 1.2
+    step = VIEW3D_STEP
+    for col in range(view_width):
+        offset = (col / max(1, view_width - 1)) - 0.5
+        angle = yaw + offset * fov
+        dir_x = math.cos(angle)
+        dir_y = math.sin(angle)
+        y_buffer = view_rect.bottom - 1
+        dist = 1.0
+        while dist < max_distance and y_buffer > view_rect.top:
+            sample_x = cam_x + dir_x * dist
+            sample_y = cam_y + dir_y * dist
+            if sample_x < 0 or sample_x >= world_width or sample_y < 0 or sample_y >= world_height:
+                break
+            sx = int(sample_x)
+            sy = int(sample_y)
+            idx = sy * world_width + sx
+            height = (heights[idx] / 255.0) * height_scale
+            projected = horizon - (height - camera_height) * proj_scale / dist
+            if projected < view_rect.top:
+                projected = view_rect.top
+            if projected < y_buffer:
+                color = shade_color(
+                    base_colors[idx],
+                    normals[idx],
+                    sun_dir,
+                    sun_height,
+                    sky_color,
+                    water_mask[idx],
+                )
+                top = int(projected)
+                bottom = int(y_buffer)
+                if bottom > view_rect.bottom - 1:
+                    bottom = view_rect.bottom - 1
+                if top < view_rect.top:
+                    top = view_rect.top
+                if top <= bottom:
+                    pygame.draw.line(
+                        screen,
+                        color,
+                        (view_rect.left + col, top),
+                        (view_rect.left + col, bottom),
+                    )
+                y_buffer = projected
+            dist += step
+    horizon_line = int(round(horizon))
+    if view_rect.top <= horizon_line <= view_rect.bottom - 1:
+        horizon_color = blend_color(sky_color, (20, 20, 30), 0.25)
+        pygame.draw.line(
+            screen,
+            horizon_color,
+            (view_rect.left, horizon_line),
+            (view_rect.right - 1, horizon_line),
+        )
+
+
 def build_world_data(
     sim: Simulation,
 ) -> Tuple[List[Tuple[int, int, int]], List[bool], List[Tuple[float, float, float]]]:
@@ -1313,6 +1407,7 @@ def run_window(sim: Simulation) -> int:
     dragging = False
     last_mouse = (0, 0)
     paused = False
+    view_mode_3d = False
     time_scale = 1.0
     sim_time = 0.0
     sim_steps = 0
@@ -1331,6 +1426,7 @@ def run_window(sim: Simulation) -> int:
     counterfactual_cache: Dict[Tuple[str, str], bool] = {}
     last_sim_dt = 1.0 / 60.0
     panel_rect = pygame.Rect(view_size[0], 0, panel_width, view_size[1])
+    view_area = pygame.Rect(0, 0, view_size[0], view_size[1])
     pending_screenshot: Optional[str] = None
     pending_report: Optional[str] = None
     event_log: List[Dict[str, object]] = []
@@ -1504,6 +1600,8 @@ def run_window(sim: Simulation) -> int:
                     pending_screenshot = screenshot_filename(sim.seed, sim.tick)
                 elif event.key == pygame.K_h:
                     pending_report = report_filename(sim.seed, sim.tick)
+                elif event.key == pygame.K_v:
+                    view_mode_3d = not view_mode_3d
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button in (2, 3):
                 dragging = True
                 last_mouse = event.pos
@@ -1572,7 +1670,29 @@ def run_window(sim: Simulation) -> int:
             pygame.transform.scale(base_surface, world_size, world_surface)
         view_rect = pygame.Rect(int(camera_x), int(camera_y), view_size[0], view_size[1])
         screen.fill(sky_color)
-        screen.blit(world_surface, (0, 0), view_rect)
+        if view_mode_3d:
+            render_heightmap_3d(
+                pygame,
+                screen,
+                view_area,
+                sim.heights,
+                base_colors,
+                normals,
+                water_mask,
+                sun_dir,
+                sun_height,
+                sky_color,
+                sim.width,
+                sim.height,
+                camera_x,
+                camera_y,
+                camera_yaw,
+                camera_pitch,
+                camera_alt,
+                scale,
+            )
+        else:
+            screen.blit(world_surface, (0, 0), view_rect)
         event_rows = [
             ("Extinction", event_detail["extinction"], event_age["extinction"] > 0),
             ("Crash", event_detail["crash"], event_age["crash"] > 0),
@@ -1599,6 +1719,7 @@ def run_window(sim: Simulation) -> int:
             f"dt: {sim_dt:.3f}s",
             f"FPS: {clock.get_fps():.1f}",
             f"Speed: {'paused' if paused else f'{time_scale:.0f}x'}",
+            f"View: {'3D' if view_mode_3d else '2D'}",
             f"Yaw: {camera_yaw:.1f} deg",
             f"Pitch: {camera_pitch:.1f} deg",
             f"Alt: {camera_alt:.1f}",

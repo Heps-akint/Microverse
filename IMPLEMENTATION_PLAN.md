@@ -17,7 +17,7 @@ Rules:
   - Required validation: `python -m py_compile microverse.py`
   - Completion definition: Camera pose state updates deterministically via inputs and the HUD reflects yaw/pitch/alt values.
 
-- [ ] TASK-PRD-10-B: 2.5D heightmap renderer + 2D/3D toggle
+- [x] TASK-PRD-10-B: 2.5D heightmap renderer + 2D/3D toggle
   - PRD: PRD-10
   - What to change: Implement a column-cast 2.5D heightmap renderer driven by the camera pose and add a toggle key to switch between 2D and 3D views; include a clear horizon line.
   - Required validation: `python -m py_compile microverse.py`

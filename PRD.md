@@ -104,7 +104,7 @@ Acceptance criteria:
 ---
 
 ## PRD-11: Runtime “laws” controls (sun angle, rainfall, temperature, gravity)
-- [ ] Fails
+- [x] Passes
 
 Acceptance criteria:
 - Keybinds adjust sun angle offset, rainfall multiplier, temperature offset, and gravity.

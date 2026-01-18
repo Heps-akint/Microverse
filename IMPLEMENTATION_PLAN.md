@@ -41,7 +41,7 @@ Rules:
   - Required validation: `python -m py_compile microverse.py`
   - Completion definition: Runtime keys adjust parameters and the HUD reflects current values deterministically.
 
-- [ ] TASK-PRD-11-B: Apply runtime “laws” to sim + lighting
+- [x] TASK-PRD-11-B: Apply runtime “laws” to sim + lighting
   - PRD: PRD-11
   - What to change: Apply the law modifiers in lighting (sun angle offset), climate updates (rainfall multiplier, temperature offset), and agent movement cost/energy (gravity) deterministically.
   - Required validation: `python -m py_compile microverse.py`

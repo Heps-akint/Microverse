@@ -145,7 +145,13 @@ class Simulation:
             energy = PREDATOR_START_ENERGY + 0.2 * self.plant_biomass[idx]
             self.predator_energy.append(clamp_range(energy, 0.3, PREDATOR_MAX_ENERGY))
 
-    def step(self, dt: float) -> None:
+    def step(
+        self,
+        dt: float,
+        temp_offset: float = 0.0,
+        rain_multiplier: float = 1.0,
+        gravity: float = 1.0,
+    ) -> None:
         dt_scaled = int(dt * 1000)
         self.tick = (self.tick + dt_scaled) & MASK32
         w = self.width
@@ -163,8 +169,8 @@ class Simulation:
             return
         sim_time = self.tick / 1000.0
         season_phase = (sim_time / 120.0) * 2.0 * math.pi
-        temp_shift = 0.08 * math.sin(season_phase)
-        rain_factor = 0.8 + 0.2 * math.sin(season_phase + 1.3)
+        temp_shift = 0.08 * math.sin(season_phase) + temp_offset
+        rain_factor = (0.8 + 0.2 * math.sin(season_phase + 1.3)) * rain_multiplier
         for idx in range(len(self.moisture)):
             temp = clamp_unit(self.base_temperature[idx] + temp_shift)
             rain = clamp_unit(self.base_rainfall[idx] * rain_factor)
@@ -183,8 +189,8 @@ class Simulation:
                 moisture = max(0.85, moisture)
             self.moisture[idx] = clamp_unit(moisture)
         self.update_plants(dt)
-        self.update_herbivores(dt)
-        self.update_predators(dt)
+        self.update_herbivores(dt, gravity)
+        self.update_predators(dt, gravity)
 
     def update_plants(self, dt: float) -> None:
         if dt <= 0.0:
@@ -200,7 +206,7 @@ class Simulation:
             biomass = self.plant_biomass[idx] + growth - decay
             self.plant_biomass[idx] = clamp_unit(biomass)
 
-    def update_herbivores(self, dt: float) -> None:
+    def update_herbivores(self, dt: float, gravity: float = 1.0) -> None:
         if dt <= 0.0 or not self.herbivore_x:
             return
         width = self.width
@@ -237,7 +243,7 @@ class Simulation:
             if eat > 0.0:
                 self.plant_biomass[pos_idx] = clamp_unit(available - eat)
             energy += eat * HERBIVORE_EAT_GAIN
-            energy -= HERBIVORE_METABOLISM * dt
+            energy -= HERBIVORE_METABOLISM * dt * gravity
             if energy <= 0.0:
                 continue
             energy = min(energy, HERBIVORE_MAX_ENERGY)
@@ -256,7 +262,7 @@ class Simulation:
         self.herbivore_y = next_y
         self.herbivore_energy = next_energy
 
-    def update_predators(self, dt: float) -> None:
+    def update_predators(self, dt: float, gravity: float = 1.0) -> None:
         if dt <= 0.0 or not self.predator_x:
             return
         width = self.width
@@ -311,7 +317,7 @@ class Simulation:
                 if prey_alive[prey_idx]:
                     prey_alive[prey_idx] = False
                     energy += PREDATOR_EAT_GAIN
-            energy -= PREDATOR_METABOLISM * dt
+            energy -= PREDATOR_METABOLISM * dt * gravity
             if energy <= 0.0:
                 continue
             energy = min(energy, PREDATOR_MAX_ENERGY)
@@ -362,9 +368,21 @@ class Simulation:
             return x, y
         return candidates[self.agent_rng.next_u32() % len(candidates)]
 
-    def run_fixed(self, steps: int, dt: float = 1.0) -> None:
+    def run_fixed(
+        self,
+        steps: int,
+        dt: float = 1.0,
+        temp_offset: float = 0.0,
+        rain_multiplier: float = 1.0,
+        gravity: float = 1.0,
+    ) -> None:
         for _ in range(steps):
-            self.step(dt)
+            self.step(
+                dt,
+                temp_offset=temp_offset,
+                rain_multiplier=rain_multiplier,
+                gravity=gravity,
+            )
 
     def digest(self) -> str:
         h = hashlib.sha256()
@@ -646,9 +664,11 @@ def sky_color_for(sun_elev: float, sun_height: float) -> Tuple[int, int, int]:
     return (clamp_byte(base[0]), clamp_byte(base[1]), clamp_byte(base[2]))
 
 
-def sun_state(sim_time: float) -> Tuple[Tuple[float, float, float], float, Tuple[int, int, int]]:
+def sun_state(
+    sim_time: float, sun_offset_deg: float = 0.0
+) -> Tuple[Tuple[float, float, float], float, Tuple[int, int, int]]:
     day_length = 60.0
-    phase = (sim_time / day_length) * 2.0 * math.pi
+    phase = (sim_time / day_length) * 2.0 * math.pi + math.radians(sun_offset_deg)
     sun_elev = math.sin(phase)
     sun_height = clamp_unit((sun_elev + 0.15) / 1.15)
     sun_az = phase * 0.35
@@ -848,7 +868,7 @@ def build_world_surface(sim: Simulation):
 
     base_colors, water_mask, normals = build_world_data(sim)
     surface = pygame.Surface((sim.width, sim.height))
-    sun_dir, sun_height, sky_color = sun_state(0.0)
+    sun_dir, sun_height, sky_color = sun_state(0.0, 0.0)
     render_lit_surface(
         surface,
         base_colors,
@@ -1743,7 +1763,12 @@ def run_window(sim: Simulation) -> int:
         active_scale = 0.0 if paused else time_scale
         sim_dt = frame_dt * active_scale
         if sim_dt > 0.0:
-            sim.step(sim_dt)
+            sim.step(
+                sim_dt,
+                temp_offset=law_temp_offset,
+                rain_multiplier=law_rain_multiplier,
+                gravity=law_gravity,
+            )
             sim_time += sim_dt
             sim_steps += 1
             last_sim_dt = sim_dt
@@ -1766,7 +1791,7 @@ def run_window(sim: Simulation) -> int:
                 dynamic_timer = 0.0
         else:
             dynamic_timer = 0.0
-        sun_dir, sun_height, sky_color = sun_state(sim_time)
+        sun_dir, sun_height, sky_color = sun_state(sim_time, law_sun_offset)
         render_lit_surface(
             base_surface,
             base_colors,

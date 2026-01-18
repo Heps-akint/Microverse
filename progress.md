@@ -284,3 +284,12 @@ Purpose: cross-session memory. DO NOT rewrite history. Append new entries only.
 - If blocked: `python` executable missing; use `python3` or install python.
 - Plan update made: Yes
 - PRD update made: No
+
+### 2026-01-18 — Iteration 032 — TASK-PRD-11-B
+- Goal: Apply runtime law modifiers to simulation and lighting so changes take effect immediately.
+- What changed: Wired sun offset into lighting, applied rainfall/temp offsets to climate updates, and scaled herbivore/predator metabolism by gravity; marked PRD-11-B complete and PRD-11 passing.
+- Commands run + results: `python -m py_compile microverse.py` (failed: python not found); `python3 -m py_compile microverse.py` (ok).
+- Outcome: Runtime law controls now affect lighting, climate, and agent energy deterministically.
+- If blocked: `python` executable missing; use `python3` or install python.
+- Plan update made: Yes
+- PRD update made: Yes

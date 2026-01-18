@@ -11,7 +11,7 @@ Rules:
 
 ## Now (highest priority first)
 
-- [ ] TASK-PRD-10-A: 3D camera pose state + HUD display
+- [x] TASK-PRD-10-A: 3D camera pose state + HUD display
   - PRD: PRD-10
   - What to change: Add camera altitude, yaw, and pitch state plus keybinds to adjust them; show the pose values in the HUD while keeping the 2D renderer unchanged.
   - Required validation: `python -m py_compile microverse.py`

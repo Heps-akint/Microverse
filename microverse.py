@@ -1303,7 +1303,13 @@ def run_window(sim: Simulation) -> int:
         world_surface = base_surface
     camera_x = max(0.0, (world_size[0] - view_size[0]) * 0.5)
     camera_y = max(0.0, (world_size[1] - view_size[1]) * 0.5)
+    camera_yaw = 0.0
+    camera_pitch = 0.0
+    camera_alt = 0.0
     move_speed = 320.0
+    yaw_speed = 90.0
+    pitch_speed = 75.0
+    alt_speed = 120.0
     dragging = False
     last_mouse = (0, 0)
     paused = False
@@ -1523,10 +1529,25 @@ def run_window(sim: Simulation) -> int:
         if move_x or move_y:
             camera_x += move_x * move_speed * frame_dt
             camera_y += move_y * move_speed * frame_dt
+        if keys[pygame.K_q]:
+            camera_yaw -= yaw_speed * frame_dt
+        if keys[pygame.K_e]:
+            camera_yaw += yaw_speed * frame_dt
+        if keys[pygame.K_r]:
+            camera_pitch += pitch_speed * frame_dt
+        if keys[pygame.K_f]:
+            camera_pitch -= pitch_speed * frame_dt
+        if keys[pygame.K_z]:
+            camera_alt -= alt_speed * frame_dt
+        if keys[pygame.K_x]:
+            camera_alt += alt_speed * frame_dt
         max_x = max(0.0, world_size[0] - view_size[0])
         max_y = max(0.0, world_size[1] - view_size[1])
         camera_x = clamp_range(camera_x, 0.0, max_x)
         camera_y = clamp_range(camera_y, 0.0, max_y)
+        camera_yaw = camera_yaw % 360.0
+        camera_pitch = clamp_range(camera_pitch, -89.0, 89.0)
+        camera_alt = max(0.0, camera_alt)
         active_scale = 0.0 if paused else time_scale
         sim_dt = frame_dt * active_scale
         if sim_dt > 0.0:
@@ -1578,6 +1599,9 @@ def run_window(sim: Simulation) -> int:
             f"dt: {sim_dt:.3f}s",
             f"FPS: {clock.get_fps():.1f}",
             f"Speed: {'paused' if paused else f'{time_scale:.0f}x'}",
+            f"Yaw: {camera_yaw:.1f} deg",
+            f"Pitch: {camera_pitch:.1f} deg",
+            f"Alt: {camera_alt:.1f}",
             f"Herbivores: {len(sim.herbivore_x)}",
             f"Predators: {len(sim.predator_x)}",
         ]

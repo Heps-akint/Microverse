@@ -239,3 +239,12 @@ Purpose: cross-session memory. DO NOT rewrite history. Append new entries only.
 - If blocked: N/A
 - Plan update made: Yes
 - PRD update made: No
+
+### 2026-01-18 — Iteration 023 — TASK-PRD-10-A
+- Goal: Add camera altitude/yaw/pitch state with keybinds and HUD display.
+- What changed: Added camera pose state and key-driven updates (yaw/pitch/alt) in windowed mode, plus HUD lines showing the pose values.
+- Commands run + results: `python -m py_compile microverse.py` (failed: python not found); `python3 -m py_compile microverse.py` (ok); `python microverse.py --selftest --seed 123 --steps 300` (failed: python not found); `python3 microverse.py --selftest --seed 123 --steps 300` (DIGEST=10abd142f6d87941117fb93aef871a698471754ae1fa4ecf25168da00d1f288d).
+- Outcome: Camera pose state updates deterministically via inputs and HUD reflects yaw/pitch/alt while 2D rendering stays unchanged.
+- If blocked: `python` executable missing; use `python3` or install python.
+- Plan update made: Yes
+- PRD update made: No

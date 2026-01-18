@@ -11,13 +11,25 @@ Rules:
 
 ## Now (highest priority first)
 
-- [ ] TASK-PRD-10-A: 3D camera state + 2.5D heightmap renderer
+- [ ] TASK-PRD-10-A: 3D camera pose state + HUD display
   - PRD: PRD-10
-  - What to change: Add camera position/yaw/pitch/altitude state and render a 3D heightmap view via column casting (2.5D) with horizon + fog and a water reflectance cue. Keep the 2D view as a toggleable fallback.
+  - What to change: Add camera altitude, yaw, and pitch state plus keybinds to adjust them; show the pose values in the HUD while keeping the 2D renderer unchanged.
   - Required validation: `python -m py_compile microverse.py`
-  - Completion definition: 3D mode renders a terrain view with horizon/fog and a camera that responds to position/yaw/pitch/altitude.
+  - Completion definition: Camera pose state updates deterministically via inputs and the HUD reflects yaw/pitch/alt values.
 
-- [ ] TASK-PRD-10-B: Render-quality presets + dynamic resolution scaling
+- [ ] TASK-PRD-10-B: 2.5D heightmap renderer + 2D/3D toggle
+  - PRD: PRD-10
+  - What to change: Implement a column-cast 2.5D heightmap renderer driven by the camera pose and add a toggle key to switch between 2D and 3D views; include a clear horizon line.
+  - Required validation: `python -m py_compile microverse.py`
+  - Completion definition: 3D mode renders a terrain view using the camera pose with a visible horizon and a working 2D/3D toggle.
+
+- [ ] TASK-PRD-10-C: 2.5D fog + water reflectance cues
+  - PRD: PRD-10
+  - What to change: Add atmospheric fog fading and water reflectance shading cues to the 2.5D renderer.
+  - Required validation: `python -m py_compile microverse.py`
+  - Completion definition: Distant terrain fades with fog and water surfaces are visually distinct in 3D mode.
+
+- [ ] TASK-PRD-10-D: Render-quality presets + dynamic resolution scaling
   - PRD: PRD-10
   - What to change: Add low/med/high quality presets (step size, max distance, vertical resolution) and a dynamic resolution scaler targeting 30 FPS.
   - Required validation: `python -m py_compile microverse.py`

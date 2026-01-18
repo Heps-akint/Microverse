@@ -52,6 +52,18 @@ VIEW3D_RES_SCALE_MAX = 1.0
 VIEW3D_RES_SCALE_STEP = 0.05
 VIEW3D_RES_UPDATE_SECS = 0.5
 VIEW3D_RES_HYSTERESIS = 4.0
+LAW_SUN_OFFSET_STEP = 5.0
+LAW_SUN_OFFSET_MIN = -90.0
+LAW_SUN_OFFSET_MAX = 90.0
+LAW_RAIN_MULT_STEP = 0.1
+LAW_RAIN_MULT_MIN = 0.0
+LAW_RAIN_MULT_MAX = 3.0
+LAW_TEMP_OFFSET_STEP = 0.05
+LAW_TEMP_OFFSET_MIN = -0.5
+LAW_TEMP_OFFSET_MAX = 0.5
+LAW_GRAVITY_STEP = 0.1
+LAW_GRAVITY_MIN = 0.2
+LAW_GRAVITY_MAX = 2.0
 
 
 class LcgRng:
@@ -1437,6 +1449,10 @@ def run_window(sim: Simulation) -> int:
     render_surface = None
     scaled_surface = None
     time_scale = 1.0
+    law_sun_offset = 0.0
+    law_rain_multiplier = 1.0
+    law_temp_offset = 0.0
+    law_gravity = 1.0
     sim_time = 0.0
     sim_steps = 0
     font = pygame.font.Font(None, 20)
@@ -1632,6 +1648,54 @@ def run_window(sim: Simulation) -> int:
                     view_mode_3d = not view_mode_3d
                 elif event.key == pygame.K_c:
                     quality_index = (quality_index + 1) % len(VIEW3D_QUALITY_PRESETS)
+                elif event.key == pygame.K_LEFTBRACKET:
+                    law_sun_offset = clamp_range(
+                        law_sun_offset - LAW_SUN_OFFSET_STEP,
+                        LAW_SUN_OFFSET_MIN,
+                        LAW_SUN_OFFSET_MAX,
+                    )
+                elif event.key == pygame.K_RIGHTBRACKET:
+                    law_sun_offset = clamp_range(
+                        law_sun_offset + LAW_SUN_OFFSET_STEP,
+                        LAW_SUN_OFFSET_MIN,
+                        LAW_SUN_OFFSET_MAX,
+                    )
+                elif event.key == pygame.K_MINUS:
+                    law_rain_multiplier = clamp_range(
+                        law_rain_multiplier - LAW_RAIN_MULT_STEP,
+                        LAW_RAIN_MULT_MIN,
+                        LAW_RAIN_MULT_MAX,
+                    )
+                elif event.key == pygame.K_EQUALS:
+                    law_rain_multiplier = clamp_range(
+                        law_rain_multiplier + LAW_RAIN_MULT_STEP,
+                        LAW_RAIN_MULT_MIN,
+                        LAW_RAIN_MULT_MAX,
+                    )
+                elif event.key == pygame.K_SEMICOLON:
+                    law_temp_offset = clamp_range(
+                        law_temp_offset - LAW_TEMP_OFFSET_STEP,
+                        LAW_TEMP_OFFSET_MIN,
+                        LAW_TEMP_OFFSET_MAX,
+                    )
+                elif event.key == pygame.K_QUOTE:
+                    law_temp_offset = clamp_range(
+                        law_temp_offset + LAW_TEMP_OFFSET_STEP,
+                        LAW_TEMP_OFFSET_MIN,
+                        LAW_TEMP_OFFSET_MAX,
+                    )
+                elif event.key == pygame.K_COMMA:
+                    law_gravity = clamp_range(
+                        law_gravity - LAW_GRAVITY_STEP,
+                        LAW_GRAVITY_MIN,
+                        LAW_GRAVITY_MAX,
+                    )
+                elif event.key == pygame.K_PERIOD:
+                    law_gravity = clamp_range(
+                        law_gravity + LAW_GRAVITY_STEP,
+                        LAW_GRAVITY_MIN,
+                        LAW_GRAVITY_MAX,
+                    )
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button in (2, 3):
                 dragging = True
                 last_mouse = event.pos
@@ -1815,6 +1879,10 @@ def run_window(sim: Simulation) -> int:
             f"FPS: {clock.get_fps():.1f}",
             f"Speed: {'paused' if paused else f'{time_scale:.0f}x'}",
             f"View: {'3D' if view_mode_3d else '2D'}",
+            f"Sun offset: {law_sun_offset:+.1f} deg",
+            f"Rain mult: {law_rain_multiplier:.2f}x",
+            f"Temp offset: {law_temp_offset:+.2f}",
+            f"Gravity: {law_gravity:.2f}x",
         ]
         if view_mode_3d:
             hud_lines.extend(

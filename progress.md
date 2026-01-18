@@ -275,3 +275,12 @@ Purpose: cross-session memory. DO NOT rewrite history. Append new entries only.
 - If blocked: `python` executable missing; use `python3` or install python.
 - Plan update made: Yes
 - PRD update made: Yes
+
+### 2026-01-18 — Iteration 031 — TASK-PRD-11-A
+- Goal: Add runtime “laws” state with keybinds and HUD display without changing simulation behavior.
+- What changed: Added runtime law controls (sun offset, rainfall multiplier, temperature offset, gravity) with keybind adjustments and HUD lines showing current values.
+- Commands run + results: `python -m py_compile microverse.py` (failed: python not found); `python microverse.py --selftest --seed 123 --steps 300` (failed: python not found); `python3 -m py_compile microverse.py` (ok); `python3 microverse.py --selftest --seed 123 --steps 300` (DIGEST=10abd142f6d87941117fb93aef871a698471754ae1fa4ecf25168da00d1f288d).
+- Outcome: Runtime law controls adjust deterministically via keybinds and are visible in the HUD.
+- If blocked: `python` executable missing; use `python3` or install python.
+- Plan update made: Yes
+- PRD update made: No

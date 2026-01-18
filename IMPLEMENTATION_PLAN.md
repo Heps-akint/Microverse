@@ -35,7 +35,7 @@ Rules:
   - Required validation: `python -m py_compile microverse.py`
   - Completion definition: Users can switch quality presets and the renderer scales resolution when FPS drops.
 
-- [ ] TASK-PRD-11-A: Runtime “laws” state + keybinds + HUD display
+- [x] TASK-PRD-11-A: Runtime “laws” state + keybinds + HUD display
   - PRD: PRD-11
   - What to change: Add runtime modifiers for sun angle offset, rainfall multiplier, temperature offset, and gravity; wire keybinds and HUD display without altering simulation behavior yet.
   - Required validation: `python -m py_compile microverse.py`

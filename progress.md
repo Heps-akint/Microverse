@@ -302,3 +302,12 @@ Purpose: cross-session memory. DO NOT rewrite history. Append new entries only.
 - If blocked: N/A
 - Plan update made: Yes
 - PRD update made: No
+
+### 2026-01-18 — Iteration 034 — TASK-PRD-12-A
+- Goal: Start with zero herbivores/predators and add deterministic spawn/clear keybinds.
+- What changed: Removed initial agent seeding, added spawn/clear helpers with keybinds (B/N/M), and gated extinction detection until populations have existed; marked PRD-12 passing.
+- Commands run + results: `python -m py_compile microverse.py` (failed: python not found); `python3 -m py_compile microverse.py` (ok); `python microverse.py --selftest --seed 123 --steps 300` (failed: python not found); `python3 microverse.py --selftest --seed 123 --steps 300` (DIGEST=22b8145b8ac3359212b7555578ece8d58231c49e4c51d03cad59d70eac1a22bc).
+- Outcome: Windowed runs now start empty, agents can be spawned/cleared deterministically, and the selftest digest updated under python3.
+- If blocked: `python` executable missing; use `python3` or install python.
+- Plan update made: Yes
+- PRD update made: Yes

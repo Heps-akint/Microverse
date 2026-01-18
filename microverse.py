@@ -118,32 +118,42 @@ class Simulation:
                 self.moisture[idx] = clamp_unit(base_moisture)
                 plant = 0.5 * self.base_rainfall[idx] + 0.5 * self.base_temperature[idx]
                 self.plant_biomass[idx] = clamp_unit(plant)
-        self._seed_herbivores()
-        self._seed_predators()
 
-    def _seed_herbivores(self) -> None:
+    def spawn_herbivores(self, count: int) -> int:
         land_indices = [idx for idx, water in enumerate(self.water_mask) if not water]
-        if not land_indices:
-            return
-        target = max(4, (self.width * self.height) // HERBIVORE_DENSITY)
-        for _ in range(target):
+        if not land_indices or count <= 0:
+            return 0
+        spawned = 0
+        for _ in range(count):
             idx = land_indices[self.agent_rng.next_u32() % len(land_indices)]
             self.herbivore_x.append(idx % self.width)
             self.herbivore_y.append(idx // self.width)
             energy = HERBIVORE_START_ENERGY + 0.4 * self.plant_biomass[idx]
             self.herbivore_energy.append(clamp_range(energy, 0.2, HERBIVORE_MAX_ENERGY))
+            spawned += 1
+        return spawned
 
-    def _seed_predators(self) -> None:
+    def spawn_predators(self, count: int) -> int:
         land_indices = [idx for idx, water in enumerate(self.water_mask) if not water]
-        if not land_indices:
-            return
-        target = max(2, (self.width * self.height) // PREDATOR_DENSITY)
-        for _ in range(target):
+        if not land_indices or count <= 0:
+            return 0
+        spawned = 0
+        for _ in range(count):
             idx = land_indices[self.agent_rng.next_u32() % len(land_indices)]
             self.predator_x.append(idx % self.width)
             self.predator_y.append(idx // self.width)
             energy = PREDATOR_START_ENERGY + 0.2 * self.plant_biomass[idx]
             self.predator_energy.append(clamp_range(energy, 0.3, PREDATOR_MAX_ENERGY))
+            spawned += 1
+        return spawned
+
+    def clear_agents(self) -> None:
+        self.herbivore_x = []
+        self.herbivore_y = []
+        self.herbivore_energy = []
+        self.predator_x = []
+        self.predator_y = []
+        self.predator_energy = []
 
     def step(
         self,
@@ -1098,9 +1108,9 @@ def detect_event_details(
     herb_count = int(round(herb_history[-1])) if herb_history else 0
     pred_count = int(round(pred_history[-1])) if pred_history else 0
     extinction_labels = []
-    if herb_history and herb_count == 0:
+    if herb_history and herb_count == 0 and max(herb_history) > 0.0:
         extinction_labels.append("Herbivores")
-    if pred_history and pred_count == 0:
+    if pred_history and pred_count == 0 and max(pred_history) > 0.0:
         extinction_labels.append("Predators")
     if extinction_labels:
         detail = ", ".join(extinction_labels)
@@ -1716,6 +1726,20 @@ def run_window(sim: Simulation) -> int:
                         LAW_GRAVITY_MIN,
                         LAW_GRAVITY_MAX,
                     )
+                elif event.key == pygame.K_b:
+                    batch = max(4, (sim.width * sim.height) // HERBIVORE_DENSITY)
+                    sim.spawn_herbivores(batch)
+                    if paused:
+                        sample_history()
+                elif event.key == pygame.K_n:
+                    batch = max(2, (sim.width * sim.height) // PREDATOR_DENSITY)
+                    sim.spawn_predators(batch)
+                    if paused:
+                        sample_history()
+                elif event.key == pygame.K_m:
+                    sim.clear_agents()
+                    if paused:
+                        sample_history()
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button in (2, 3):
                 dragging = True
                 last_mouse = event.pos

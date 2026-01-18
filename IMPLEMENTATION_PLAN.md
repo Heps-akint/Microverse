@@ -47,7 +47,7 @@ Rules:
   - Required validation: `python -m py_compile microverse.py`
   - Completion definition: Simulation responds immediately and deterministically to runtime law changes.
 
-- [ ] TASK-PRD-12-A: Empty-start ecology + interactive spawning/reset
+- [x] TASK-PRD-12-A: Empty-start ecology + interactive spawning/reset
   - PRD: PRD-12
   - What to change: Start with zero herbivores/predators by default (no initial seeding), add keybinds to spawn deterministic batches of herbivores/predators, and add a keybind to clear all agents without regenerating the world.
   - Required validation: `python -m py_compile microverse.py`

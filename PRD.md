@@ -114,7 +114,7 @@ Acceptance criteria:
 ---
 
 ## PRD-12: Start empty, spawn ecology interactively
-- [ ] Fails
+- [x] Passes
 
 Acceptance criteria:
 - On startup, there are zero herbivores and predators.

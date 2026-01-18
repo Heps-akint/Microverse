@@ -212,3 +212,12 @@ Purpose: cross-session memory. DO NOT rewrite history. Append new entries only.
 - If blocked: N/A
 - Plan update made: Yes
 - PRD update made: No
+
+### 2026-01-18 — Iteration 024 — TASK-PLAN
+- Goal: Refresh implementation plan against current PRD/specs and code state.
+- What changed: Rewrote the "Now" task list to align with the current 2D renderer and missing PRD-10..18 gaps, adding smaller benchmark/time-machine sub-tasks and clarifying the 2.5D renderer step.
+- Commands run + results: `ls`; `cat AGENTS.md PRD.md IMPLEMENTATION_PLAN.md progress.md specs/*`; `cat ralph/PROMPT_plan.md`; `sed -n '1,2080p' microverse.py`; `date +%Y-%m-%d`.
+- Outcome: Plan is reprioritized and scoped into single-session tasks for remaining PRDs.
+- If blocked: N/A
+- Plan update made: Yes
+- PRD update made: No

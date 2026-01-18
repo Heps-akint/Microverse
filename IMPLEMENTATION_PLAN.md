@@ -11,7 +11,83 @@ Rules:
 
 ## Now (highest priority first)
 
-- None. All PRD items are complete; add new tasks here when scope expands.
+- [ ] TASK-PRD-10-A: 3D camera state + 2.5D heightmap renderer
+  - PRD: PRD-10
+  - What to change: Add camera position/yaw/pitch/altitude state and render a 3D heightmap view via column casting (2.5D) with horizon + fog and a water reflectance cue. Keep the 2D view as a toggleable fallback.
+  - Required validation: `python -m py_compile microverse.py`
+  - Completion definition: 3D mode renders a terrain view with horizon/fog and a camera that responds to position/yaw/pitch/altitude.
+
+- [ ] TASK-PRD-10-B: Render-quality presets + dynamic resolution scaling
+  - PRD: PRD-10
+  - What to change: Add low/med/high quality presets (step size, max distance, vertical resolution) and a dynamic resolution scaler targeting 30 FPS.
+  - Required validation: `python -m py_compile microverse.py`
+  - Completion definition: Users can switch quality presets and the renderer scales resolution when FPS drops.
+
+- [ ] TASK-PRD-11-A: Runtime “laws” controls and HUD display
+  - PRD: PRD-11
+  - What to change: Add runtime modifiers for sun angle offset, rainfall multiplier, temperature offset, and gravity; wire keybinds and HUD display; apply modifiers in lighting, climate updates, and agent movement cost.
+  - Required validation: `python -m py_compile microverse.py`
+  - Completion definition: Runtime keys adjust parameters, the HUD reflects current values, and the simulation responds deterministically.
+
+- [ ] TASK-PRD-12-A: Empty-start ecology + interactive spawning/reset
+  - PRD: PRD-12
+  - What to change: Start with zero herbivores/predators and add keybinds to spawn herbivores/predators and clear all agents without regenerating the world.
+  - Required validation: `python -m py_compile microverse.py`
+  - Completion definition: Populations start at zero and can be spawned/cleared via keybinds.
+
+- [ ] TASK-PRD-13-A: Pure-Python video capture (AVI, raw RGB)
+  - PRD: PRD-13
+  - What to change: Add a simple AVI writer using `struct` and uncompressed RGB frames, plus capture toggle keybinds and deterministic filenames.
+  - Required validation: `python -m py_compile microverse.py`
+  - Completion definition: A keybind starts/stops capture and writes a valid AVI video using pure-Python code.
+
+- [ ] TASK-PRD-14-A: Energy flow tracking + dashboard plot
+  - PRD: PRD-14
+  - What to change: Track herbivore/predator energy gains/losses per tick and display a dashboard plot of energy flow.
+  - Required validation: `python -m py_compile microverse.py`
+  - Completion definition: Dashboard shows a live energy-flow plot.
+
+- [ ] TASK-PRD-14-B: Histogram plot + HTML report integration
+  - PRD: PRD-14
+  - What to change: Add a histogram (plant biomass or moisture) to the dashboard and include it in the HTML report.
+  - Required validation: `python -m py_compile microverse.py`
+  - Completion definition: Dashboard and HTML report include the histogram plot.
+
+- [ ] TASK-PRD-15-A: Deterministic benchmark flyover + timing stats
+  - PRD: PRD-15
+  - What to change: Add a `--benchmark` CLI flag that runs a fixed 10s camera flyover path and prints timing stats (frame time, avg FPS) deterministically.
+  - Required validation: `python -m py_compile microverse.py`
+  - Completion definition: Benchmark mode runs the deterministic path and reports timing stats.
+
+- [ ] TASK-PRD-15-B: Benchmark video + report artifact
+  - PRD: PRD-15
+  - What to change: Reuse the video writer and HTML report generation to emit a short benchmark clip and a timing report file (seed + tick in name).
+  - Required validation: `python -m py_compile microverse.py`
+  - Completion definition: Benchmark mode outputs a deterministic report and video artifact.
+
+- [ ] TASK-PRD-16-A: Time machine ring buffer + rewind/forward controls
+  - PRD: PRD-16
+  - What to change: Snapshot core simulation state into a ring buffer and add keybinds to jump backward/forward through saved states.
+  - Required validation: `python -m py_compile microverse.py`
+  - Completion definition: Users can rewind/advance through saved states deterministically.
+
+- [ ] TASK-PRD-16-B: Time machine branching
+  - PRD: PRD-16
+  - What to change: Allow resuming from a past snapshot and create a new deterministic branch timeline without corrupting the buffer.
+  - Required validation: `python -m py_compile microverse.py`
+  - Completion definition: Branching creates a new timeline from a past state.
+
+- [ ] TASK-PRD-17-A: Procedural soundtrack toggle
+  - PRD: PRD-17
+  - What to change: Generate synth audio from world state via the standard library `wave` module, with on/off toggle.
+  - Required validation: `python -m py_compile microverse.py`
+  - Completion definition: Audio can be toggled and is procedurally generated.
+
+- [ ] TASK-PRD-18-A: Photomode path-traced still render
+  - PRD: PRD-18
+  - What to change: Add a slow photomode renderer that path-traces a still and saves a deterministic PNG.
+  - Required validation: `python -m py_compile microverse.py`
+  - Completion definition: Photomode generates a high-quality still without changing sim state.
 
 ---
 

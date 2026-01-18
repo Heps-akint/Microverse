@@ -257,3 +257,12 @@ Purpose: cross-session memory. DO NOT rewrite history. Append new entries only.
 - If blocked: `python` executable missing; use `python3` or install python.
 - Plan update made: Yes
 - PRD update made: No
+
+### 2026-01-18 — Iteration 029 — TASK-PRD-10-C
+- Goal: Add atmospheric fog and stronger water reflectance cues in the 2.5D renderer.
+- What changed: Added distance-based fog blending toward the sky color in the 3D column renderer and boosted water reflectance by blending water columns toward the sky color.
+- Commands run + results: `python -m py_compile microverse.py` (failed: python not found); `python3 -m py_compile microverse.py` (ok); `python microverse.py --selftest --seed 123 --steps 300` (failed: python not found); `python3 microverse.py --selftest --seed 123 --steps 300` (DIGEST=10abd142f6d87941117fb93aef871a698471754ae1fa4ecf25168da00d1f288d).
+- Outcome: Distant terrain now fades with fog in 3D mode and water reads more reflective against the sky.
+- If blocked: `python` executable missing; use `python3` or install python.
+- Plan update made: Yes
+- PRD update made: No

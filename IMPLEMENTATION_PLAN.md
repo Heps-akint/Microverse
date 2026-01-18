@@ -23,7 +23,7 @@ Rules:
   - Required validation: `python -m py_compile microverse.py`
   - Completion definition: 3D mode renders a terrain view using the camera pose with a visible horizon and a working 2D/3D toggle.
 
-- [ ] TASK-PRD-10-C: 2.5D fog + water reflectance cues
+- [x] TASK-PRD-10-C: 2.5D fog + water reflectance cues
   - PRD: PRD-10
   - What to change: Add atmospheric fog fading and water reflectance shading cues to the 2.5D renderer.
   - Required validation: `python -m py_compile microverse.py`

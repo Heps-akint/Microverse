@@ -733,6 +733,9 @@ def render_heightmap_3d(
     horizon = clamp_range(horizon, view_rect.top - view_height, view_rect.bottom + view_height)
     max_distance = max(world_width, world_height) * 1.2
     step = VIEW3D_STEP
+    fog_start = max_distance * 0.2
+    fog_end = max_distance * 0.85
+    fog_span = max(1.0, fog_end - fog_start)
     for col in range(view_width):
         offset = (col / max(1, view_width - 1)) - 0.5
         angle = yaw + offset * fov
@@ -753,14 +756,22 @@ def render_heightmap_3d(
             if projected < view_rect.top:
                 projected = view_rect.top
             if projected < y_buffer:
+                is_water = water_mask[idx]
                 color = shade_color(
                     base_colors[idx],
                     normals[idx],
                     sun_dir,
                     sun_height,
                     sky_color,
-                    water_mask[idx],
+                    is_water,
                 )
+                if is_water:
+                    water_reflect = 0.12 + 0.25 * sun_height
+                    color = blend_color(color, sky_color, water_reflect)
+                if dist > fog_start:
+                    fog_t = clamp_unit((dist - fog_start) / fog_span)
+                    fog_t = smoothstep(fog_t)
+                    color = blend_color(color, sky_color, fog_t)
                 top = int(projected)
                 bottom = int(y_buffer)
                 if bottom > view_rect.bottom - 1:

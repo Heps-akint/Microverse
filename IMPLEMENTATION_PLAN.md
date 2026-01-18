@@ -49,9 +49,9 @@ Rules:
 
 - [ ] TASK-PRD-12-A: Empty-start ecology + interactive spawning/reset
   - PRD: PRD-12
-  - What to change: Start with zero herbivores/predators and add keybinds to spawn herbivores/predators and clear all agents without regenerating the world.
+  - What to change: Start with zero herbivores/predators by default (no initial seeding), add keybinds to spawn deterministic batches of herbivores/predators, and add a keybind to clear all agents without regenerating the world.
   - Required validation: `python -m py_compile microverse.py`
-  - Completion definition: Populations start at zero and can be spawned/cleared via keybinds.
+  - Completion definition: Populations start at zero and can be spawned/cleared via keybinds deterministically.
 
 - [ ] TASK-PRD-13-A: Pure-Python video capture (AVI, raw RGB)
   - PRD: PRD-13
